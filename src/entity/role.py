@@ -1,6 +1,6 @@
 from typing import Dict, List, Optional
 from datetime import datetime
-from ..config.supabase import get_supabase
+from .supabase_config import get_supabase
 
 class Role:
     # Role Constants

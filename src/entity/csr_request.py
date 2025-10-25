@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
-from ..config.supabase import get_supabase
+from .supabase_config import get_supabase
 
 class CSRRequest:
     @staticmethod

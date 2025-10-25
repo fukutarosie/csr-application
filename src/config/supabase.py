@@ -1,18 +1,8 @@
-from supabase import create_client
-import os
-from dotenv import load_dotenv
+"""DEPRECATED: Supabase configuration has been moved to src/entity/supabase_config.py
 
-# Load environment variables
-load_dotenv()
+This file is kept for backwards compatibility.
+New code should import from: src.entity.supabase_config
+"""
+from src.entity.supabase_config import get_supabase, supabase, SUPABASE_KEY, SUPABASE_URL
 
-# Initialize Supabase client with environment variables
-SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_KEY')
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-def get_supabase():
-    return supabase
+__all__ = ['get_supabase', 'supabase', 'SUPABASE_KEY', 'SUPABASE_URL']

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
-from ..config.supabase import get_supabase, SUPABASE_KEY
+from .supabase_config import get_supabase, SUPABASE_KEY
 
 class User:
     @staticmethod

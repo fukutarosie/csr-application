@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Dict, List, Tuple
-from ..config.supabase import get_supabase
+from .supabase_config import get_supabase
 
 class Request:
     @staticmethod
