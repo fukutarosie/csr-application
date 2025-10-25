@@ -19,13 +19,41 @@ cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000').split(',')
 CORS(app, resources={r"/api/*": {"origins": cors_origins}})
 
 # Import and register blueprints
-from src.controller.auth.auth_controller import auth_blueprint
-from src.controller.user.user_controller import user_blueprint
-from src.controller.role.role_controller import role_blueprint
+# Auth Controllers
+from src.controller.auth.login_controller import login_blueprint
+from src.controller.auth.logout_controller import logout_blueprint
 
-app.register_blueprint(auth_blueprint)
-app.register_blueprint(user_blueprint)
-app.register_blueprint(role_blueprint)
+# User Account Controllers
+from src.controller.userAccount.create_user_account_controller import create_user_account_blueprint
+from src.controller.userAccount.view_user_account_controller import view_user_account_blueprint
+from src.controller.userAccount.update_user_account_controller import update_user_account_blueprint
+from src.controller.userAccount.suspend_user_account_controller import suspend_user_account_blueprint
+from src.controller.userAccount.search_user_account_controller import search_user_account_blueprint
+
+# User Profile Controllers
+from src.controller.userProfile.create_user_profile_controller import create_user_profile_blueprint
+from src.controller.userProfile.view_user_profile_controller import view_user_profile_blueprint
+from src.controller.userProfile.update_user_profile_controller import update_user_profile_blueprint
+from src.controller.userProfile.suspend_user_profile_controller import suspend_user_profile_blueprint
+from src.controller.userProfile.search_user_profile_controller import search_user_profile_blueprint
+
+# Register Auth blueprints
+app.register_blueprint(login_blueprint)
+app.register_blueprint(logout_blueprint)
+
+# Register User Account blueprints
+app.register_blueprint(create_user_account_blueprint)
+app.register_blueprint(view_user_account_blueprint)
+app.register_blueprint(update_user_account_blueprint)
+app.register_blueprint(suspend_user_account_blueprint)
+app.register_blueprint(search_user_account_blueprint)
+
+# Register User Profile blueprints
+app.register_blueprint(create_user_profile_blueprint)
+app.register_blueprint(view_user_profile_blueprint)
+app.register_blueprint(update_user_profile_blueprint)
+app.register_blueprint(suspend_user_profile_blueprint)
+app.register_blueprint(search_user_profile_blueprint)
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])

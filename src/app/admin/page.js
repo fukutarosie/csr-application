@@ -75,7 +75,7 @@ export default function UserAdminDashboard() {
     setLoading(true);
     setError('');
     try {
-      const response = await axios.get('http://localhost:5000/api/users', {
+      const response = await axios.get('http://localhost:5000/api/userAccount', {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -95,7 +95,7 @@ export default function UserAdminDashboard() {
 
   const fetchRoles = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/roles', {
+      const response = await axios.get('http://localhost:5000/api/userProfile', {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -117,7 +117,7 @@ export default function UserAdminDashboard() {
 
     try {
       // Call backend API to create user
-      const response = await axios.post('http://localhost:5000/api/users', createForm, {
+      const response = await axios.post('http://localhost:5000/api/userAccount', createForm, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -159,7 +159,7 @@ export default function UserAdminDashboard() {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await axios.put(`http://localhost:5000/api/users/${editingUser.id}`, editForm, {
+      const response = await axios.put(`http://localhost:5000/api/userAccount/${editingUser.id}`, editForm, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -190,7 +190,7 @@ export default function UserAdminDashboard() {
     
     // Background API call - don't reload on success or failure
     try {
-      await axios.put(`http://localhost:5000/api/users/${userId}/suspend`, {}, {
+      await axios.put(`http://localhost:5000/api/userAccount/${userId}/suspend`, {}, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -215,7 +215,7 @@ export default function UserAdminDashboard() {
     
     // Background API call - don't reload on success or failure
     try {
-      await axios.put(`http://localhost:5000/api/users/${userId}/activate`, {}, {
+      await axios.put(`http://localhost:5000/api/userAccount/${userId}/activate`, {}, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -238,7 +238,7 @@ export default function UserAdminDashboard() {
     setError('');
     try {
       // Profiles are actually the roles table
-      const response = await axios.get('http://localhost:5000/api/roles', {
+      const response = await axios.get('http://localhost:5000/api/userProfile', {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -263,7 +263,7 @@ export default function UserAdminDashboard() {
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/roles', profileForm, {
+      const response = await axios.post('http://localhost:5000/api/userProfile', profileForm, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
@@ -290,7 +290,7 @@ export default function UserAdminDashboard() {
     setLoading(true);
     try {
       const response = await axios.put(
-        `http://localhost:5000/api/roles/${editingProfile.id}`,
+        `http://localhost:5000/api/userProfile/${editingProfile.id}`,
         editProfileForm,
         {
           headers: {
@@ -329,7 +329,7 @@ export default function UserAdminDashboard() {
     setSuccess('');
     try {
       // Delete from backend (cascading happens in backend)
-      const response = await axios.delete(`http://localhost:5000/api/roles/${profileId}`, {
+      const response = await axios.delete(`http://localhost:5000/api/userProfile/${profileId}/delete`, {
         headers: {
           'Authorization': `Bearer ${getToken()}`
         }
