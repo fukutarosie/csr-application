@@ -67,6 +67,71 @@ class User:
         return True, user
 
     @staticmethod
+    def authenticate_user(username: str, password: str, role_name: str = None) -> Optional[Dict]:
+        """
+        CONTROL LAYER: Complete authentication with token generation
+        
+        This method contains ALL authentication logic:
+        - Verify user exists
+        - Verify password
+        - Verify user is active
+        - Verify role (if provided)
+        - Generate JWT token
+        - Update last_login timestamp
+        
+        Returns dict with user info and token, or None if authentication fails
+        """
+        try:
+            # Step 1: Get user from database
+            user = User.get_user_by_username(username)
+            if not user:
+                return None
+            
+            # Step 2: Verify password
+            if not check_password_hash(user['password'], password):
+                return None
+            
+            # Step 3: Check if user account is active
+            if not user['is_active']:
+                return None
+            
+            # Step 4: If role specified, verify user has that role
+            if role_name:
+                from .role import Role
+                role = Role.get_role_by_name(role_name)
+                if not role or user['role_id'] != role['id']:
+                    return None
+            
+            # Step 5: Generate JWT token (TOKEN MANAGEMENT - CONTROL LAYER)
+            token = User.create_session_token(user['id'])
+            
+            # Step 6: Update last_login timestamp
+            supabase = get_supabase()
+            supabase.table('users').update({
+                "last_login": datetime.utcnow().isoformat()
+            }).eq('id', user['id']).execute()
+            
+            # Step 7: Return authenticated user with token
+            # Get role information for response
+            from .role import Role
+            role = Role.get_role_by_id(user['role_id'])
+            
+            return {
+                'id': user['id'],
+                'username': user['username'],
+                'email': user['email'],
+                'full_name': user['full_name'],
+                'role_id': user['role_id'],
+                'is_active': user['is_active'],
+                'token': token,
+                'role': role
+            }
+            
+        except Exception as e:
+            print(f"Error during authentication: {str(e)}")
+            return None
+
+    @staticmethod
     def update_user(user_id: int, updates: Dict) -> Optional[Dict]:
         """Update user details"""
         supabase = get_supabase()
