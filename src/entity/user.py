@@ -102,7 +102,7 @@ class User:
                 if not role or user['role_id'] != role['id']:
                     return None
             
-            # Step 5: Generate JWT token (TOKEN MANAGEMENT - CONTROL LAYER)
+            # Step 5: Generate JWT token 
             token = User.create_session_token(user['id'])
             
             # Step 6: Update last_login timestamp
@@ -246,3 +246,258 @@ class User:
         except Exception as e:
             print(f"Error searching users: {str(e)}")
             return []
+
+    # ==================== ENHANCED BUSINESS LOGIC ====================
+    
+    @staticmethod
+    def invalidate_session_token(token: str) -> bool:
+        """
+        CONTROL LAYER: Invalidate a session token
+        
+        For MVP: JWT is stateless, so we just verify it's valid
+        Future: Could implement token blacklist in database
+        
+        Args:
+            token: Token to invalidate
+            
+        Returns:
+            True if token was valid, False otherwise
+        """
+        try:
+            # Verify token is valid before "invalidating"
+            payload = jwt.decode(token, SUPABASE_KEY, algorithms=['HS256'])
+            user_id = payload.get('user_id')
+            
+            # Token is valid, would be added to blacklist
+            # For now, we just return success
+            print(f"[INFO] Token invalidated for user: {user_id}")
+            return True
+            
+        except jwt.ExpiredSignatureError:
+            # Token already expired
+            return True
+        except jwt.InvalidTokenError:
+            # Invalid token
+            return False
+        except Exception as e:
+            print(f"Error invalidating token: {str(e)}")
+            return False
+    
+    @staticmethod
+    def get_user_complete_details(user_id: int) -> Optional[Dict]:
+        """
+        CONTROL LAYER: Get complete user details with related data
+        
+        Returns user info with:
+        - Role details
+        - Profile information
+        - Account status
+        
+        Args:
+            user_id: User ID to fetch
+            
+        Returns:
+            Complete user object or None
+        """
+        try:
+            supabase = get_supabase()
+            
+            # Get user with role
+            result = supabase.table('users').select(
+                "*",
+                "roles(id, role_name, role_code, dashboard_route)"
+            ).eq('id', user_id).execute()
+            
+            if not result.data:
+                return None
+            
+            user = result.data[0]
+            
+            # Get user profile if exists
+            profile_result = supabase.table('user_profiles').select("*").eq('user_id', user_id).execute()
+            if profile_result.data:
+                user['profile'] = profile_result.data[0]
+            
+            return user
+            
+        except Exception as e:
+            print(f"Error getting user complete details: {str(e)}")
+            return None
+    
+    @staticmethod
+    def get_all_active_users() -> List[Dict]:
+        """
+        CONTROL LAYER: Get all active users
+        
+        Returns:
+            List of active users with role information
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('users').select(
+                "*",
+                "roles(id, role_name, role_code, dashboard_route)"
+            ).eq('is_active', True).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting active users: {str(e)}")
+            return []
+    
+    @staticmethod
+    def get_users_by_role(role_id: int) -> List[Dict]:
+        """
+        CONTROL LAYER: Get all users with a specific role
+        
+        Args:
+            role_id: Role ID to filter by
+            
+        Returns:
+            List of users with the specified role
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('users').select("*").eq('role_id', role_id).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting users by role: {str(e)}")
+            return []
+    
+    @staticmethod
+    def get_users_by_role_name(role_name: str) -> List[Dict]:
+        """
+        CONTROL LAYER: Get all users with a specific role name
+        
+        Args:
+            role_name: Role name to filter by
+            
+        Returns:
+            List of users with the specified role
+        """
+        try:
+            from .role import Role
+            role = Role.get_role_by_name(role_name)
+            if not role:
+                return []
+            return User.get_users_by_role(role['id'])
+        except Exception as e:
+            print(f"Error getting users by role name: {str(e)}")
+            return []
+    
+    @staticmethod
+    def count_users() -> int:
+        """
+        CONTROL LAYER: Get total count of users
+        
+        Returns:
+            Total number of users
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('users').select("id").execute()
+            return len(result.data) if result.data else 0
+        except Exception as e:
+            print(f"Error counting users: {str(e)}")
+            return 0
+    
+    @staticmethod
+    def count_active_users() -> int:
+        """
+        CONTROL LAYER: Get count of active users
+        
+        Returns:
+            Number of active users
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('users').select("id").eq('is_active', True).execute()
+            return len(result.data) if result.data else 0
+        except Exception as e:
+            print(f"Error counting active users: {str(e)}")
+            return 0
+    
+    @staticmethod
+    def email_exists(email: str) -> bool:
+        """
+        CONTROL LAYER: Check if email already exists
+        
+        Args:
+            email: Email to check
+            
+        Returns:
+            True if email exists, False otherwise
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('users').select("id").eq('email', email).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            print(f"Error checking email: {str(e)}")
+            return False
+    
+    @staticmethod
+    def username_exists(username: str) -> bool:
+        """
+        CONTROL LAYER: Check if username already exists
+        
+        Args:
+            username: Username to check
+            
+        Returns:
+            True if username exists, False otherwise
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('users').select("id").eq('username', username).execute()
+            return len(result.data) > 0
+        except Exception as e:
+            print(f"Error checking username: {str(e)}")
+            return False
+    
+    @staticmethod
+    def get_user_login_history(user_id: int, limit: int = 10) -> List[Dict]:
+        """
+        CONTROL LAYER: Get user login history
+        
+        Args:
+            user_id: User ID
+            limit: Maximum number of records to return
+            
+        Returns:
+            List of login history records
+        """
+        try:
+            supabase = get_supabase()
+            result = supabase.table('user_login_history').select("*").eq(
+                'user_id', user_id
+            ).order('login_at', desc=True).limit(limit).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting login history: {str(e)}")
+            return []
+    
+    @staticmethod
+    def log_user_activity(user_id: int, activity_type: str, activity_details: str = None) -> Optional[Dict]:
+        """
+        CONTROL LAYER: Log user activity
+        
+        Args:
+            user_id: User ID
+            activity_type: Type of activity (e.g., 'login', 'create_user', 'update_profile')
+            activity_details: Additional details about activity
+            
+        Returns:
+            Activity log record or None
+        """
+        try:
+            supabase = get_supabase()
+            activity_data = {
+                'user_id': user_id,
+                'activity_type': activity_type,
+                'activity_details': activity_details,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+            result = supabase.table('user_activity_logs').insert(activity_data).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error logging activity: {str(e)}")
+            return None

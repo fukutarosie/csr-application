@@ -1,52 +1,111 @@
 from flask import Blueprint, request, jsonify
 from src.entity import User, Role
+from src.utils.validators import Validators
+from src.utils.sanitizers import Sanitizers
+from src.utils.helpers import TokenHelpers, RequestHelpers, ResponseHelpers
 
 auth_blueprint = Blueprint('auth', __name__)
 
+
+def extract_and_sanitize_auth_data(data: dict) -> dict:
+    """
+    Extract and sanitize authentication data
+    
+    Args:
+        data: Raw request data
+        
+    Returns:
+        Sanitized data dictionary
+    """
+    return {
+        'username': Sanitizers.sanitize_username(data.get('username', '')),
+        'password': data.get('password', ''),  # Don't modify password
+        'role_name': Sanitizers.sanitize_string(data.get('role_name', ''))
+    }
+
+
 class AuthController:
     """
-    BOUNDARY LAYER: HTTP Interface for Authentication
+    HTTP Interface for Authentication
     
-    This controller is responsible ONLY for:
+    This controller is responsible for:
     ✓ Extracting data from HTTP requests
     ✓ Validating HTTP format/structure
     ✓ Formatting HTTP responses
     ✓ Returning appropriate HTTP status codes
-    
-    ALL authentication logic is delegated to CONTROL layer (Entity)
     """
     
     @auth_blueprint.route('/api/auth/login', methods=['POST'])
     def login():
         """
-        BOUNDARY: Login endpoint
+        Login endpoint with comprehensive validation
         
-        Delegates to CONTROL layer (User.authenticate_user) which handles:
-        - Password verification
-        - User account status check
-        - Role verification
-        - JWT token generation
+        Validates:
+        - HTTP format (JSON body presence)
+        - Required fields presence
+        - Data format (email, password strength, role)
+        
+        Delegates to CONTROL layer (User.authenticate_user)
         """
         try:
+            # ===== BOUNDARY: Validate HTTP format =====
+            is_valid, error_msg = RequestHelpers.validate_json_body()
+            if not is_valid:
+                response, status = ResponseHelpers.error_response(
+                    message=error_msg,
+                    error_code='INVALID_JSON',
+                    status_code=400
+                )
+                return jsonify(response), status
+            
             # ===== BOUNDARY: Extract HTTP request data =====
-            data = request.get_json()
+            data = RequestHelpers.get_json_data()
             
             if not data:
-                return jsonify({
-                    'success': False,
-                    'message': 'Request body is required'
-                }), 400
+                response, status = ResponseHelpers.error_response(
+                    message='Request body is required',
+                    error_code='EMPTY_BODY',
+                    status_code=400
+                )
+                return jsonify(response), status
             
             # ===== BOUNDARY: Validate required fields =====
-            username = data.get('username')
-            password = data.get('password')
-            role_name = data.get('role_name')
+            is_valid, error_msg, missing = RequestHelpers.validate_required_fields(
+                data, ['username', 'password', 'role_name']
+            )
+            if not is_valid:
+                response, status = ResponseHelpers.error_response(
+                    message=error_msg,
+                    error_code='MISSING_FIELDS',
+                    status_code=400,
+                    details={'missing_fields': missing}
+                )
+                return jsonify(response), status
             
-            if not username or not password or not role_name:
-                return jsonify({
-                    'success': False,
-                    'message': 'Username, password, and role_name are required'
-                }), 400
+            # ===== BOUNDARY: Sanitize input data =====
+            sanitized_data = extract_and_sanitize_auth_data(data)
+            username = sanitized_data['username']
+            password = sanitized_data['password']
+            role_name = sanitized_data['role_name']
+            
+            # ===== BOUNDARY: Validate data format =====
+            is_valid, error_msg = Validators.validate_username(username)
+            if not is_valid:
+                response, status = ResponseHelpers.error_response(
+                    message=error_msg,
+                    error_code='INVALID_USERNAME',
+                    status_code=400
+                )
+                return jsonify(response), status
+            
+            is_valid, error_msg = Validators.validate_password(password)
+            if not is_valid:
+                response, status = ResponseHelpers.error_response(
+                    message=error_msg,
+                    error_code='INVALID_PASSWORD',
+                    status_code=400
+                )
+                return jsonify(response), status
             
             # ===== CALL CONTROL LAYER =====
             # User.authenticate_user() handles ALL authentication logic:
@@ -59,145 +118,171 @@ class AuthController:
             
             # ===== BOUNDARY: Handle CONTROL layer response =====
             if not result:
-                return jsonify({
-                    'success': False,
-                    'message': 'Invalid credentials or user role mismatch'
-                }), 401
-            
+                response, status = ResponseHelpers.error_response(
+                    message='Invalid credentials or user role mismatch',
+                    error_code='AUTH_FAILED',
+                    status_code=401
+                )
+                return jsonify(response), status
+
             # ===== BOUNDARY: Format HTTP response =====
-            return jsonify({
-                'success': True,
-                'message': 'Login successful',
-                'data': {
-                    'token': result['token'],
-                    'user': {
-                        'id': result['id'],
-                        'username': result['username'],
-                        'full_name': result['full_name'],
-                        'email': result['email'],
-                        'role': {
-                            'name': result['role']['role_name'],
-                            'code': result['role']['role_code'],
-                            'dashboard_route': result['role']['dashboard_route']
-                        }
+            response_data = {
+                'token': result['token'],
+                'user': {
+                    'id': result['id'],
+                    'username': result['username'],
+                    'full_name': result['full_name'],
+                    'email': result['email'],
+                    'role': {
+                        'name': result['role']['role_name'],
+                        'code': result['role']['role_code'],
+                        'dashboard_route': result['role']['dashboard_route']
                     }
                 }
-            }), 200
+            }
+            
+            # Log successful login
+            User.log_user_activity(result['id'], 'login', f'Logged in as {role_name}')
+            
+            response, status = ResponseHelpers.success_response(
+                data=response_data,
+                message='Login successful',
+                status_code=200
+            )
+            return jsonify(response), status
         
         except Exception as e:
-            # ===== BOUNDARY: Catch and format exceptions =====
             print(f"[ERROR] Login endpoint error: {str(e)}")
-            return jsonify({
-                'success': False,
-                'message': 'An error occurred during login'
-            }), 500
+            response, status = ResponseHelpers.error_response(
+                message='An error occurred during login',
+                error_code='SERVER_ERROR',
+                status_code=500
+            )
+            return jsonify(response), status
 
     @auth_blueprint.route('/api/auth/logout', methods=['POST'])
     def logout():
         """
-        BOUNDARY: Logout endpoint
+        Logout endpoint with improved token handling
         
         Delegates to CONTROL layer which handles:
         - Token validation
         - Token invalidation
         """
         try:
-            # ===== BOUNDARY: Extract HTTP header =====
-            auth_token = request.headers.get('Authorization')
+            # ===== BOUNDARY: Extract Authorization header =====
+            auth_header = request.headers.get('Authorization')
             
-            if not auth_token:
-                return jsonify({
-                    'success': False,
-                    'message': 'No token provided'
-                }), 401
+            # ===== BOUNDARY: Validate header format =====
+            is_valid, error_msg = TokenHelpers.validate_bearer_format(auth_header)
+            if not is_valid:
+                response, status = ResponseHelpers.error_response(
+                    message=error_msg,
+                    error_code='INVALID_TOKEN_FORMAT',
+                    status_code=401
+                )
+                return jsonify(response), status
             
-            # ===== BOUNDARY: Parse token format =====
-            if auth_token.startswith('Bearer '):
-                auth_token = auth_token[7:]
+            # ===== BOUNDARY: Extract token =====
+            token = TokenHelpers.extract_bearer_token(auth_header)
             
             # ===== CALL CONTROL LAYER =====
             # User.invalidate_session_token() handles token invalidation logic
-            success = User.invalidate_session_token(auth_token)
+            success = User.invalidate_session_token(token)
             
-            # ===== BOUNDARY: Format HTTP response =====
+            # ===== BOUNDARY: Handle CONTROL layer response =====
             if success:
-                return jsonify({
-                    'success': True,
-                    'message': 'Logout successful'
-                }), 200
+                response, status = ResponseHelpers.success_response(
+                    message='Logout successful',
+                    status_code=200
+                )
+                return jsonify(response), status
             else:
-                return jsonify({
-                    'success': False,
-                    'message': 'Logout failed'
-                }), 400
+                response, status = ResponseHelpers.error_response(
+                    message='Logout failed',
+                    error_code='LOGOUT_FAILED',
+                    status_code=400
+                )
+                return jsonify(response), status
         
         except Exception as e:
             # ===== BOUNDARY: Catch and format exceptions =====
             print(f"[ERROR] Logout endpoint error: {str(e)}")
-            return jsonify({
-                'success': False,
-                'message': 'An error occurred during logout'
-            }), 500
+            response, status = ResponseHelpers.error_response(
+                message='An error occurred during logout',
+                error_code='SERVER_ERROR',
+                status_code=500
+            )
+            return jsonify(response), status
 
     @auth_blueprint.route('/api/auth/verify', methods=['GET'])
     def verify_session():
         """
-        BOUNDARY: Verify session endpoint
+        Token verification endpoint with improved error handling
         
-        Delegates to CONTROL layer which handles:
-        - Token verification
-        - User data retrieval
+        Validates token and returns user data with role information
         """
         try:
-            # ===== BOUNDARY: Extract HTTP header =====
-            auth_token = request.headers.get('Authorization')
+            # ===== BOUNDARY: Extract Authorization header =====
+            auth_header = request.headers.get('Authorization')
             
-            if not auth_token:
-                return jsonify({
-                    'success': False,
-                    'message': 'No token provided'
-                }), 401
+            # ===== BOUNDARY: Validate header format =====
+            is_valid, error_msg = TokenHelpers.validate_bearer_format(auth_header)
+            if not is_valid:
+                response, status = ResponseHelpers.error_response(
+                    message=error_msg,
+                    error_code='INVALID_TOKEN_FORMAT',
+                    status_code=401
+                )
+                return jsonify(response), status
             
-            # ===== BOUNDARY: Parse token format =====
-            if auth_token.startswith('Bearer '):
-                auth_token = auth_token[7:]
+            # ===== BOUNDARY: Extract token =====
+            token = TokenHelpers.extract_bearer_token(auth_header)
             
             # ===== CALL CONTROL LAYER =====
             # User.verify_session_token() handles token verification logic
-            user = User.verify_session_token(auth_token)
+            user = User.verify_session_token(token)
             
             # ===== BOUNDARY: Handle CONTROL layer response =====
             if not user:
-                return jsonify({
-                    'success': False,
-                    'message': 'Invalid or expired token'
-                }), 401
+                response, status = ResponseHelpers.error_response(
+                    message='Invalid or expired token',
+                    error_code='INVALID_TOKEN',
+                    status_code=401
+                )
+                return jsonify(response), status
             
-            # ===== CALL CONTROL LAYER for role info =====
+            # ===== BOUNDARY: Get role info =====
             role = Role.get_role_by_id(user['role_id'])
             
             # ===== BOUNDARY: Format HTTP response =====
-            return jsonify({
-                'success': True,
-                'data': {
-                    'user': {
-                        'id': user['id'],
-                        'username': user['username'],
-                        'full_name': user['full_name'],
-                        'email': user['email'],
-                        'role': {
-                            'name': role['role_name'],
-                            'code': role['role_code'],
-                            'dashboard_route': role['dashboard_route']
-                        } if role else None
-                    }
+            response_data = {
+                'user': {
+                    'id': user['id'],
+                    'username': user['username'],
+                    'full_name': user['full_name'],
+                    'email': user['email'],
+                    'role': {
+                        'name': role['role_name'],
+                        'code': role['role_code'],
+                        'dashboard_route': role['dashboard_route']
+                    } if role else None
                 }
-            }), 200
+            }
+            
+            response, status = ResponseHelpers.success_response(
+                data=response_data,
+                message='Token is valid',
+                status_code=200
+            )
+            return jsonify(response), status
         
         except Exception as e:
             # ===== BOUNDARY: Catch and format exceptions =====
             print(f"[ERROR] Verify endpoint error: {str(e)}")
-            return jsonify({
-                'success': False,
-                'message': 'An error occurred during token verification'
-            }), 500
+            response, status = ResponseHelpers.error_response(
+                message='An error occurred during token verification',
+                error_code='SERVER_ERROR',
+                status_code=500
+            )
+            return jsonify(response), status
