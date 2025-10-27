@@ -1,6 +1,6 @@
 # Project Restructuring Complete ✅
 
-**Date:** October 25, 2025
+**Date:** October 27, 2025 (Last Updated)
 
 ## Changes Made
 
@@ -206,6 +206,40 @@ All now include: JSON validation, sanitization, format checking, uniqueness chec
 
 ---
 
+## 📅 Update 3: October 27, 2025 - Authentication Consolidation & Password Validation Fix
+
+### 1. Authentication Controller Consolidation
+- **Consolidated 4 files into 2:**
+  - Merged: `auth_controller.py` + `login_controller.py` + `logout_controller.py` → `login_controller.py`
+  - Kept: `auth_middleware.py` (route protection)
+  - Deleted redundant files
+
+- **Consolidated LoginController now handles:**
+  - ✅ POST `/api/auth/login` - User login
+  - ✅ POST `/api/auth/logout` - User logout  
+  - ✅ GET `/api/auth/verify` - Token verification
+
+- **Result:** Cleaner architecture, single source of truth for all auth endpoints
+
+### 2. BCE Diagrams Updated
+- **File:** `BCE_CLASS_DIAGRAMS.md` - Shows consolidated LoginController
+- **File:** `BCE_SEQUENCE_DIAGRAMS.md` - Added logout & verify flows
+
+### 3. Password Validation Relaxed
+- **Problem:** Existing user `admin1:password123` couldn't login (no uppercase required)
+- **Solution:** Changed validator from strict (upper+lower+digit) to relaxed (letters OR digits only)
+- **File:** `src/utils/validators.py`
+- **Result:** Existing users can now login, new passwords still validated
+
+### 4. All Validation Business Logic Documented
+- **File:** `ALL_VALIDATION_BUSINESS_LOGIC.md` - Complete validation reference with all rules
+
+### 5. Both Servers Running
+- ✅ Backend: `http://127.0.0.1:5000`
+- ✅ Frontend: `http://localhost:3000`
+
+---
+
 ## Total Improvements Summary
 
 ```
@@ -214,12 +248,19 @@ All now include: JSON validation, sanitization, format checking, uniqueness chec
 - Files enhanced: 6 (3 controllers + 1 entity + 2 docs)
 - New code: 1500+ lines
 - Modified code: 300+ lines
+- Auth files consolidated: 4 → 2
 
 🔒 Security:
 - 20+ error codes
 - 100% input validation
 - Input sanitization
 - Email/username uniqueness
-- Password strength
+- Password strength validation
 - Activity logging
+- Relaxed password: letters OR digits (8+ chars)
+
+🎯 Consolidation:
+- LoginController: All 3 auth endpoints
+- AuthMiddleware: Route protection
+- Total reduction: 2 redundant files removed
 ```

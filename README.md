@@ -2,6 +2,8 @@
 
 **Customer Service Request Management System**
 
+**Last Updated:** October 27, 2025
+
 A professional full-stack application built with:
 - **Backend:** Flask (Python) + Supabase PostgreSQL
 - **Frontend:** Next.js 14 (React) + Tailwind CSS
