@@ -1,7 +1,249 @@
 # BCE Class Diagrams - REVISED (Post-Authentication Refactoring)
 
-**Last Updated:** October 26, 2025  
-**Status:** Reflects current refactored authentication system
+**Last Updated:** October 27, 2025  
+**Status:** Reflects current refactored authentication system + Enhanced Header Component
+
+**Last Updated:** October 27, 2025  
+**Status:** Reflects current refactored authentication system + Enhanced Header Component
+
+---
+
+## 0. ENHANCED HEADER COMPONENT - LOGOUT FLOW (NEW)
+
+### Logout with Confirmation Modal - Sequence Diagram
+
+```
+User                    Header                  Modal                Backend
+ │                      Component               (Dialog)            (API)
+ │                       │                        │                   │
+ │  (1) Click Logout     │                        │                   │
+ ├──────────────────────>│                        │                   │
+ │                       │                        │                   │
+ │                       │  (2) Show Modal        │                   │
+ │                       ├───────────────────────>│                   │
+ │                       │                        │                   │
+ │                       │  Confirmation Dialog   │                   │
+ │                       │  "Are you sure?"       │                   │
+ │                       │  [Yes, Logout] [Cancel]                    │
+ │                       │                        │                   │
+ │    (3a) Cancel        │                        │                   │
+ ├──────────────────────>│                        │                   │
+ │                       │  (3b) Hide Modal       │                   │
+ │                       │<───────────────────────┤                   │
+ │<──────────────────────┤                        │                   │
+ │  Stay on Dashboard    │                        │                   │
+ │                       │                        │                   │
+ │                       │                        │                   │
+ │    (4) Confirm        │                        │                   │
+ ├──────────────────────>│                        │                   │
+ │                       │                        │                   │
+ │                       │  (5) API Call          │                   │
+ │                       │ POST /api/auth/logout  │                   │
+ │                       ├──────────────────────────────────────────>│
+ │                       │                        │                   │
+ │                       │                        │  (6) Process      │
+ │                       │                        │  Invalidate Token │
+ │                       │                        │                   │
+ │                       │  (7) Response 200 OK   │                   │
+ │                       │<──────────────────────────────────────────┤
+ │                       │                        │                   │
+ │                       │  (8) Clear State       │                   │
+ │                       │  - Clear localStorage  │                   │
+ │                       │  - Remove 'token'      │                   │
+ │                       │  - Remove 'user'       │                   │
+ │                       │                        │                   │
+ │                       │  (9) Navigate          │                   │
+ │                       │  router.push('/')      │                   │
+ │                       │                        │                   │
+ │<──────────────────────┤                        │                   │
+ │  Redirected to Home   │                        │                   │
+```
+
+### Header Component Class Structure (ENHANCED)
+
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│                         BOUNDARY LAYER                                    │
+│                    (Frontend Component)                                   │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌───────────────────────────────────────────────────────────────────┐   │
+│  │ Header Component (ENHANCED V2)                                   │   │
+│  │ Location: src/app/components/Header.js                           │   │
+│  │ Type: React Functional Component with Hooks                      │   │
+│  ├───────────────────────────────────────────────────────────────────┤   │
+│  │ Props:                                                            │   │
+│  │  - title: string (Dashboard title)                               │   │
+│  │  - subtitle: string | null (Welcome message)                     │   │
+│  │                                                                  │   │
+│  │ State:                                                            │   │
+│  │  - isMenuOpen: boolean (Mobile hamburger menu state)             │   │
+│  │  - isLogoutModalOpen: boolean (Confirmation modal state)  ✨NEW  │   │
+│  │                                                                  │   │
+│  │ Features:                                                         │   │
+│  │  ✨ Mobile Responsive                                            │   │
+│  │     ├─ md:hidden (Mobile): Hamburger menu icon visible          │   │
+│  │     └─ md:inline-flex (Desktop): Logout button visible          │   │
+│  │                                                                  │   │
+│  │  ✨ Sticky Header                                                │   │
+│  │     └─ sticky top-0 (Always visible on scroll)                  │   │
+│  │                                                                  │   │
+│  │  ✨ Logout Confirmation Modal (NEW)                             │   │
+│  │     ├─ Shows when isLogoutModalOpen = true                      │   │
+│  │     ├─ Prevents accidental logouts                              │   │
+│  │     ├─ [Yes, Logout] - Confirms logout                          │   │
+│  │     └─ [Cancel] - Closes modal, returns to dashboard            │   │
+│  │                                                                  │   │
+│  │  ✨ Hamburger Menu (Mobile)                                      │   │
+│  │     ├─ Toggle with ☰ / ✕ icon                                   │   │
+│  │     ├─ Dropdown menu on mobile                                  │   │
+│  │     └─ Logout option accessible via menu                        │   │
+│  │                                                                  │   │
+│  │  ✨ SVG Icons                                                    │   │
+│  │     ├─ Logout icon (exit/arrow)                                 │   │
+│  │     └─ Menu icon (hamburger/close)                              │   │
+│  │                                                                  │   │
+│  │ Methods:                                                         │   │
+│  │  + render(): JSX.Element                                         │   │
+│  │    ├─ <header> (sticky)                                         │   │
+│  │    ├─ <Desktop logout button>                                   │   │
+│  │    ├─ <Mobile hamburger button>                                 │   │
+│  │    ├─ <Mobile dropdown menu>                                    │   │
+│  │    └─ <Logout Confirmation Modal>                               │   │
+│  │                                                                  │   │
+│  │  + handleLogout(): Promise<void>                                 │   │
+│  │    ├─ API Call: POST /api/auth/logout                           │   │
+│  │    ├─ Clear localStorage (token, user)                          │   │
+│  │    ├─ router.push('/')  (Navigate to home)                      │   │
+│  │    └─ Finally: setIsLogoutModalOpen(false)                      │   │
+│  │                                                                  │   │
+│  │ Responsibilities:                                                │   │
+│  │  ✓ Render sticky header with responsive design                  │   │
+│  │  ✓ Display title and optional subtitle                          │   │
+│  │  ✓ Show logout button (desktop) / menu (mobile)                 │   │
+│  │  ✓ Handle logout confirmation modal                             │   │
+│  │  ✓ Make API call to backend logout endpoint                     │   │
+│  │  ✓ Clear authentication state (localStorage)                    │   │
+│  │  ✓ Navigate user to home after logout                           │   │
+│  │  ✗ NO business logic (stateless, just renders UI)               │   │
+│  │  ✗ NO direct token validation                                   │   │
+│  └───────────────────────────────────────────────────────────────────┘   │
+│           │                                                              │
+│           │ Uses                                                         │
+│           ├──────────────────┬──────────────────┬──────────────────┐    │
+│           │                  │                  │                  │    │
+│           ↓                  ↓                  ↓                  ↓    │
+│  ┌──────────────────┐  ┌──────────────┐  ┌────────────┐  ┌─────────┐  │
+│  │ useRouter Hook   │  │ useState Hook│  │ axios      │  │ localStorage
+│  │ (next/navigation)│  │ (React)      │  │ (HTTP)     │  │ (Browser API)
+│  └──────────────────┘  └──────────────┘  └────────────┘  └─────────┘  │
+│           │                  │                  │                  │    │
+│           └──────────────────┴──────────────────┴──────────────────┘    │
+│                                                                           │
+└──────────────────────────────────────────────────────────────────────────┘
+                              ↓ (HTTP API Call)
+┌──────────────────────────────────────────────────────────────────────────┐
+│                     CONTROL/BOUNDARY LAYER                               │
+│                    (Backend - Logout Handler)                            │
+├──────────────────────────────────────────────────────────────────────────┤
+│                                                                           │
+│  ┌───────────────────────────────────────────────────────────────────┐   │
+│  │ AuthController (Backend - BOUNDARY)                              │   │
+│  │ Location: src/controller/auth/auth_controller.py                 │   │
+│  ├───────────────────────────────────────────────────────────────────┤   │
+│  │                                                                  │   │
+│  │ Route: POST /api/auth/logout                                     │   │
+│  │                                                                  │   │
+│  │ Methods:                                                         │   │
+│  │  + logout(request) -> Response                                   │   │
+│  │    ├─ Extract token from Authorization header                   │   │
+│  │    ├─ Validate token format                                     │   │
+│  │    ├─ Call User.invalidate_session_token(token) ← CONTROL      │   │
+│  │    ├─ Check response                                            │   │
+│  │    └─ Return 200 OK with success message                        │   │
+│  │                                                                  │   │
+│  │ Responsibilities:                                                │   │
+│  │  ✓ Extract HTTP request (Bearer token)                          │   │
+│  │  ✓ Validate token format                                        │   │
+│  │  ✓ Delegate to CONTROL layer (invalidate token)                 │   │
+│  │  ✓ Format HTTP response                                         │   │
+│  │  ✗ NO token validation logic                                    │   │
+│  │  ✗ NO business logic                                            │   │
+│  └───────────────────────────────────────────────────────────────────┘   │
+│           │                                                              │
+│           │ Delegates to CONTROL                                        │
+│           ↓                                                              │
+│  ┌───────────────────────────────────────────────────────────────────┐   │
+│  │ User.invalidate_session_token() - CONTROL LAYER                  │   │
+│  │ Location: src/entity/user.py                                     │   │
+│  ├───────────────────────────────────────────────────────────────────┤   │
+│  │                                                                  │   │
+│  │ @staticmethod                                                   │   │
+│  │ invalidate_session_token(token: str) -> bool                   │   │
+│  │                                                                  │   │
+│  │ Implementation:                                                 │   │
+│  │  1. Decode JWT token                                            │   │
+│  │  2. Extract user_id and token payload                           │   │
+│  │  3. Verify token signature                                      │   │
+│  │  4. Optional: Add token to blacklist (if implemented)           │   │
+│  │  5. Return True (token invalidated)                             │   │
+│  │                                                                  │   │
+│  │ Responsibilities:                                                │   │
+│  │  ✓ Implement token invalidation logic                           │   │
+│  │  ✓ Decode and verify JWT                                        │   │
+│  │  ✓ Handle token expiration                                      │   │
+│  │  ✗ NO HTTP handling                                             │   │
+│  │  ✗ NO direct database queries (unless blacklist maintained)     │   │
+│  └───────────────────────────────────────────────────────────────────┘   │
+│           │                                                              │
+│           └──────────────────────────────────────────────────────────┐   │
+│                                                                      │   │
+│           (Optional: If token blacklist is maintained in DB)        │   │
+│           ├─ Call ENTITY layer to add token to blacklist            │   │
+│           └─ SQL: INSERT INTO token_blacklist (token, expires_at)   │   │
+│                                                                      │   │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### Logout Confirmation Modal - Component Details
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                  Logout Confirmation Modal                     │
+│                  (Frontend Component)                          │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  Fixed overlay: inset-0 (covers entire screen)               │
+│  Background: bg-black bg-opacity-50 (semi-transparent)       │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │                                                          │ │
+│  │  Confirm Logout                                        │ │
+│  │  ─────────────────────                                 │ │
+│  │                                                          │ │
+│  │  Are you sure you want to logout?                     │ │
+│  │                                                          │ │
+│  │  ┌──────────────────┐  ┌──────────────────┐          │ │
+│  │  │  Yes, Logout     │  │     Cancel       │          │ │
+│  │  │  (bg-red-600)    │  │  (bg-gray-200)   │          │ │
+│  │  └──────────────────┘  └──────────────────┘          │ │
+│  │                                                          │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  Styling:                                                      │
+│  - Modal: bg-white, rounded-lg, shadow-xl                    │
+│  - Title: text-2xl, font-bold, text-gray-900                 │
+│  - Message: text-gray-600                                    │
+│  - Buttons: Flex with gap-3, full-width on mobile            │
+│                                                                │
+│  Behavior:                                                     │
+│  - Visible when: isLogoutModalOpen === true                  │
+│  - "Yes, Logout": Calls handleLogout()                       │
+│  - "Cancel": Sets isLogoutModalOpen = false                  │
+│  - Prevents accidental logouts by requiring confirmation    │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
@@ -506,5 +748,5 @@ Each layer has clear responsibilities, no crossing over.
 ---
 
 **Status:** ✅ Complete & Current  
-**Aligns with:** October 26, 2025 authentication refactoring  
-**Reflects:** Actual code structure and layer responsibilities
+**Aligns with:** October 27, 2025 authentication refactoring + Enhanced Header Component  
+**Reflects:** Actual code structure, layer responsibilities, and logout confirmation modal flow
