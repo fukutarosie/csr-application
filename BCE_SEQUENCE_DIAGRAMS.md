@@ -4,9 +4,11 @@
 
 This document provides comprehensive sequence diagrams showing the complete flow of interactions between Boundary, Control, and Entity layers for all major features.
 
+**NOTE: Authentication Consolidation** - All authentication endpoints (login, logout, verify) are now handled by the consolidated `LoginController` in `src/controller/auth/login_controller.py`.
+
 ---
 
-## 1. LOGIN FEATURE - SEQUENCE DIAGRAM
+## 1. LOGIN FEATURE - SEQUENCE DIAGRAM (Consolidated LoginController)
 
 ### Successful Login Flow
 
@@ -730,6 +732,185 @@ Admin 1          Admin 2          Controller          User Entity         Supaba
 
 ---
 
+## 2. LOGOUT FEATURE - SEQUENCE DIAGRAM (Consolidated LoginController)
+
+### Successful Logout Flow
+
+```
+User              Dashboard        LoginController    Supabase
+  │                  │                  │                │
+  │ Click Logout     │                  │                │
+  ├────────────────>│                  │                │
+  │                  │                  │                │
+  │                  │ 1. POST Request  │                │
+  │                  │ /api/auth/logout │                │
+  │                  ├─────────────────>│                │
+  │                  │ {token: JWT}     │                │
+  │                  │                  │                │
+  │                  │                  │ 2. Extract JWT │
+  │                  │                  │ Token from     │
+  │                  │                  │ Request Header │
+  │                  │                  │ ✓ Token Found  │
+  │                  │                  │                │
+  │                  │                  │ 3. Decode      │
+  │                  │                  │ Token & Verify │
+  │                  │                  │ ✓ Valid Token  │
+  │                  │                  │                │
+  │                  │                  │ 4. Extract     │
+  │                  │                  │ User ID        │
+  │                  │                  │ user_id = 123  │
+  │                  │                  │                │
+  │                  │                  │ 5. Invalidate  │
+  │                  │                  │ Token          │
+  │                  │                  │ (Log action)   │
+  │                  │                  │                │
+  │                  │ 6. Return        │                │
+  │                  │ Success Response │                │
+  │                  │<─────────────────┤                │
+  │                  │ {success: true,  │                │
+  │                  │  message:        │                │
+  │                  │  "Logged out"}   │                │
+  │                  │                  │                │
+  │ 7. Clear Local   │                  │                │
+  │ Storage (Token)  │                  │                │
+  │<────────────────┤                  │                │
+  │                  │                  │                │
+  │ 8. Redirect to   │                  │                │
+  │ Login Page       │                  │                │
+  │                  │                  │                │
+```
+
+### Logout Error - Missing Token
+
+```
+User              Dashboard        LoginController    
+  │                  │                  │                
+  │ Click Logout     │                  │                
+  ├────────────────>│                  │                
+  │                  │                  │                
+  │                  │ 1. POST Request  │                
+  │                  │ /api/auth/logout │                
+  │                  ├─────────────────>│                
+  │                  │ (No Token)       │                
+  │                  │                  │                
+  │                  │                  │ 2. Check       │
+  │                  │                  │ Request Headers│
+  │                  │                  │ ✗ Token Missing│
+  │                  │                  │                
+  │                  │ 3. Return Error  │                
+  │                  │<─────────────────┤                
+  │                  │ {success: false, │                
+  │                  │  message:        │                
+  │                  │  "No token      │                
+  │                  │   provided"}     │                
+  │                  │                  │                
+  │ 4. Display       │                  │                
+  │ Error Message    │                  │                
+  │<────────────────┤                  │                
+  │                  │                  │                
+```
+
+---
+
+## 3. TOKEN VERIFY FEATURE - SEQUENCE DIAGRAM (Consolidated LoginController)
+
+### Successful Token Verification Flow
+
+```
+Client App       VerifyEndpoint      LoginController    Supabase
+  │                  │                  │                │
+  │ GET Request      │                  │                │
+  │ /api/auth/verify │                  │                │
+  ├────────────────>│                  │                │
+  │                  │                  │                │
+  │                  │                  │ 1. Extract JWT │
+  │                  │                  │ from Request   │
+  │                  │                  │ Headers        │
+  │                  │                  │ ✓ Token Found  │
+  │                  │                  │                │
+  │                  │                  │ 2. Decode &    │
+  │                  │                  │ Validate JWT   │
+  │                  │                  │ ✓ Valid Token  │
+  │                  │                  │ ✓ Not Expired  │
+  │                  │                  │                │
+  │                  │                  │ 3. Extract     │
+  │                  │                  │ Payload Data   │
+  │                  │                  │ user_id, role, │
+  │                  │                  │ username, etc. │
+  │                  │                  │                │
+  │ 4. Return Status │                  │                │
+  │<────────────────┤                  │                
+  │ {success: true, │                  │                │
+  │  valid: true,   │                  │                │
+  │  data: {        │                  │                │
+  │    user_id,     │                  │                │
+  │    username,    │                  │                │
+  │    role,        │                  │                │
+  │    iat,         │                  │                │
+  │    exp          │                  │                │
+  │  }}             │                  │                │
+  │                  │                  │                │
+```
+
+### Token Verify Error - Expired Token
+
+```
+Client App       VerifyEndpoint      LoginController
+  │                  │                  │
+  │ GET Request      │                  │
+  │ /api/auth/verify │                  │
+  ├────────────────>│                  │
+  │                  │                  │
+  │                  │                  │ 1. Decode      │
+  │                  │                  │ JWT Token      │
+  │                  │                  │ ✓ Signature OK │
+  │                  │                  │                │
+  │                  │                  │ 2. Check       │
+  │                  │                  │ Expiration     │
+  │                  │                  │ ✗ EXPIRED      │
+  │                  │                  │ (exp < now)    │
+  │                  │                  │                │
+  │ 3. Return Error  │                  │                │
+  │<────────────────┤                  │                │
+  │ {success: false,│                  │                │
+  │  valid: false,  │                  │                │
+  │  message:       │                  │                │
+  │  "Token        │                  │                │
+  │  expired"}      │                  │                │
+  │                  │                  │                │
+  │ 4. Frontend     │                  │                │
+  │ Redirects to    │                  │                │
+  │ Login Page      │                  │                │
+  │                  │                  │                │
+```
+
+### Token Verify Error - Invalid Token
+
+```
+Client App       VerifyEndpoint      LoginController
+  │                  │                  │
+  │ GET Request      │                  │
+  │ /api/auth/verify │                  │
+  │ (Invalid Token)  │                  │
+  ├────────────────>│                  │
+  │                  │                  │
+  │                  │                  │ 1. Decode      │
+  │                  │                  │ JWT Token      │
+  │                  │                  │ ✗ Invalid      │
+  │                  │                  │ Signature      │
+  │                  │                  │                │
+  │ 2. Return Error  │                  │                │
+  │<────────────────┤                  │                │
+  │ {success: false,│                  │                │
+  │  valid: false,  │                  │                │
+  │  message:       │                  │                │
+  │  "Invalid       │                  │                │
+  │  token"}        │                  │                │
+  │                  │                  │                │
+```
+
+---
+
 ## Summary
 
 This sequence diagram documentation provides:
@@ -742,5 +923,6 @@ This sequence diagram documentation provides:
 ✅ **JWT token verification** flows
 ✅ **Permission checking** at boundaries
 ✅ **End-to-end user journeys** from UI to database
+✅ **Consolidated authentication endpoints** (login, logout, verify) in single LoginController
 
 Use these diagrams to understand the complete interaction patterns between layers!

@@ -34,34 +34,23 @@ This document provides comprehensive class diagrams for the CSR Application foll
 │           │ Calls HTTP POST                                             │
 │           ↓                                                              │
 │  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ AuthController (Backend Boundary)                                │   │
-│  │ src/controller/auth/auth_controller.py                           │   │
-│  ├──────────────────────────────────────────────────────────────────┤   │
-│  │ Attributes:                                                      │   │
-│  │  - request: Request                                              │   │
-│  │  - response_format: dict                                         │   │
-│  │                                                                  │   │
-│  │ Methods:                                                         │   │
-│  │  + login_handler(request): Response                              │   │
-│  │  + validate_input(data): bool                                    │   │
-│  │  + format_response(status, data, message): dict                  │   │
-│  │  + handle_error(error): Response                                 │   │
-│  └──────────────────────────────────────────────────────────────────┘   │
-│           │                                                              │
-│           │ Delegates to                                                │
-│           ↓                                                              │
-│  ┌──────────────────────────────────────────────────────────────────┐   │
-│  │ LoginController (Backend Boundary)                               │   │
+│  │ LoginController (Backend Boundary - Consolidated)                │   │
 │  │ src/controller/auth/login_controller.py                          │   │
 │  ├──────────────────────────────────────────────────────────────────┤   │
+│  │ Handles all 3 authentication endpoints:                          │   │
+│  │  ✓ POST /api/auth/login                                          │   │
+│  │  ✓ POST /api/auth/logout                                         │   │
+│  │  ✓ GET /api/auth/verify                                          │   │
+│  │                                                                  │   │
 │  │ Attributes:                                                      │   │
-│  │  - user_service: User                                            │   │
-│  │  - auth_service: Auth                                            │   │
+│  │  - login_blueprint: Blueprint                                    │   │
+│  │  - request: Request                                              │   │
 │  │                                                                  │   │
 │  │ Methods:                                                         │   │
-│  │  + login(username, password, role_name): dict                    │   │
-│  │  + validate_credentials(username, password): bool                │   │
-│  │  + generate_token(user_id, role_id): string                      │   │
+│  │  + login(request): Response                                      │   │
+│  │  + logout(request): Response                                     │   │
+│  │  + verify_session(request): Response                             │   │
+│  │  - extract_and_sanitize_auth_data(data): dict                    │   │
 │  └──────────────────────────────────────────────────────────────────┘   │
 │                                                                           │
 └─────────────────────────────────────────────────────────────────────────┘

@@ -97,17 +97,9 @@ class Validators:
         if len(password) > 100:
             return False, "Password is too long (max 100 characters)"
         
-        # Check for uppercase letter
-        if not any(c.isupper() for c in password):
-            return False, "Password must contain at least one uppercase letter"
-        
-        # Check for lowercase letter
-        if not any(c.islower() for c in password):
-            return False, "Password must contain at least one lowercase letter"
-        
-        # Check for digit
-        if not any(c.isdigit() for c in password):
-            return False, "Password must contain at least one number"
+        # Check for at least one alphanumeric character (letter OR digit)
+        if not any(c.isalnum() for c in password):
+            return False, "Password must contain at least letters or numbers"
         
         # Check for special character (optional)
         if require_special and not any(c in '!@#$%^&*()_+-=[]{}|;:,.<>?' for c in password):
