@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import Header from '../components/Header';
+import Alert from '../components/Alert';
 
 export default function UserAdminDashboard() {
   const router = useRouter();
@@ -368,39 +370,13 @@ export default function UserAdminDashboard() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/');
-  };
-
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">User Admin Dashboard</h1>
-          <button
-            onClick={handleLogout}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
-          >
-            Logout
-          </button>
-        </div>
-      </header>
+      <Header title="User Admin Dashboard" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Messages */}
-        {error && (
-          <div className="mb-4 p-4 bg-red-50 border-l-4 border-red-400 rounded-lg">
-            <p className="text-red-700">{error}</p>
-          </div>
-        )}
-        {success && (
-          <div className="mb-4 p-4 bg-green-50 border-l-4 border-green-400 rounded-lg">
-            <p className="text-green-700">{success}</p>
-          </div>
-        )}
+        <Alert type="error" message={error} />
+        <Alert type="success" message={success} />
 
         {/* Main Tabs */}
         <div className="mb-8 border-b border-gray-200">
