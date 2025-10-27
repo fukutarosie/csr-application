@@ -1,4 +1,7 @@
-# Quick Start Guide
+# Quick Start Guide - CSR Application
+
+**Last Updated:** October 27, 2025
+**Latest Enhancements:** Input validation, sanitization, and business logic improvements
 
 ## 🚀 Start the Application in 3 Steps
 
@@ -71,7 +74,35 @@ Create test users from the dashboard for testing different roles:
 
 ---
 
-## 🆘 Troubleshooting
+## 🔐 Input Validation & Security
+
+All user input is automatically validated and sanitized:
+
+**Username Requirements:**
+- 3-20 characters
+- Alphanumeric + hyphens/underscores
+
+**Password Requirements:**
+- Minimum 8 characters
+- Must have uppercase letter (A-Z)
+- Must have lowercase letter (a-z)
+- Must have digit (0-9)
+- Example: `SecurePass123` ✅
+
+**Email Requirements:**
+- Valid email format
+- Must be unique (no duplicates)
+- Example: `user@example.com` ✅
+
+**Full Name Requirements:**
+- 2-100 characters
+- Must contain letters
+
+If validation fails, you'll get a clear error message telling you what's wrong!
+
+---
+
+## 📞 Troubleshooting
 
 ### Port Already in Use
 If you get "Port 5000 in use" or "Port 3000 in use":
@@ -96,7 +127,10 @@ If you get "Port 5000 in use" or "Port 3000 in use":
 
 See:
 - `README.md` - Full documentation
+- `VALIDATION_SUMMARY.md` - Complete validation reference
+- `QUICK_REFERENCE.md` - API quick reference
 - `ADMIN_DASHBOARD_GUIDE.md` - Dashboard features
+- `HOW_JSON_AND_WEB_WORKS.md` - Understanding JSON & web requests
 
 ---
 

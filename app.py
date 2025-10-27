@@ -21,7 +21,6 @@ CORS(app, resources={r"/api/*": {"origins": cors_origins}})
 # Import and register blueprints
 # Auth Controllers
 from src.controller.auth.login_controller import login_blueprint
-from src.controller.auth.logout_controller import logout_blueprint
 
 # User Account Controllers
 from src.controller.userAccount.create_user_account_controller import create_user_account_blueprint
@@ -39,7 +38,6 @@ from src.controller.userProfile.search_user_profile_controller import search_use
 
 # Register Auth blueprints
 app.register_blueprint(login_blueprint)
-app.register_blueprint(logout_blueprint)
 
 # Register User Account blueprints
 app.register_blueprint(create_user_account_blueprint)

@@ -1,5 +1,48 @@
 # Quick Start: New Modular Controller Endpoints
 
+**Last Updated:** October 27, 2025
+**Latest Enhancements:** Input validation, sanitization, error handling, and activity logging
+
+## 🔒 Input Validation Rules
+
+All endpoints validate input according to these rules:
+
+### Field Validation Rules
+
+| Field | Rules | Example |
+|-------|-------|---------|
+| username | 3-20 chars, alphanumeric + - and _ | `john_doe-123` ✅ |
+| password | 8+ chars, uppercase, lowercase, digit | `SecurePass123` ✅ |
+| email | Valid email format, max 100 chars, unique | `john@example.com` ✅ |
+| full_name | 2-100 chars, must contain letters | `John Michael Doe` ✅ |
+| phone | 10+ digits | `5551234567` ✅ |
+| role_id | Positive integer | `1`, `2`, `3` ✅ |
+
+### Error Responses
+
+If validation fails, you'll receive:
+
+```json
+{
+  "success": false,
+  "message": "Specific error description",
+  "error_code": "ERROR_CODE",
+  "status_code": 400
+}
+```
+
+**Common Error Codes:**
+- `INVALID_JSON` - Request is not valid JSON
+- `EMPTY_BODY` - Request body is empty
+- `MISSING_FIELDS` - Required fields not provided
+- `VALIDATION_ERROR` - Field format invalid
+- `DUPLICATE_EMAIL` - Email already exists
+- `DUPLICATE_USERNAME` - Username already exists
+- `INVALID_TOKEN` - JWT token invalid/expired
+- `USER_NOT_FOUND` - User doesn't exist
+
+---
+
 ## 🎯 API Endpoint Quick Reference
 
 ### Authentication
@@ -197,6 +240,51 @@ All new controllers located in:
 - `src/controller/auth/` - Authentication
 - `src/controller/userAccount/` - User account operations
 - `src/controller/userProfile/` - User profile/role operations
+
+- `src/controller/auth/` - Authentication
+- `src/controller/userAccount/` - User account operations
+- `src/controller/userProfile/` - User profile/role operations
+
+---
+
+## 📊 HTTP Status Codes
+
+```
+200 OK                 - Request succeeded
+201 Created            - Resource created successfully
+400 Bad Request        - Validation error or malformed request
+401 Unauthorized       - Missing or invalid authentication
+404 Not Found          - Resource doesn't exist
+409 Conflict           - Duplicate resource (email/username exists)
+500 Server Error       - Internal server error
+```
+
+---
+
+## 🔐 Security Headers
+
+All requests to protected endpoints require:
+
+```
+Authorization: Bearer {JWT_TOKEN}
+Content-Type: application/json
+```
+
+**Getting a token:**
+1. Login with valid credentials
+2. Receive JWT token in response
+3. Include token in `Authorization` header for subsequent requests
+4. Token expires after configured duration
+5. Use logout endpoint to invalidate token
+
+---
+
+## 📚 Related Documentation
+
+- **[VALIDATION_SUMMARY.md](./VALIDATION_SUMMARY.md)** - Complete validation rules and error handling
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Helper functions and utilities
+- **[HOW_JSON_AND_WEB_WORKS.md](./HOW_JSON_AND_WEB_WORKS.md)** - Understanding requests/responses
+- **[CONTROLLER_IMPROVEMENTS_GUIDE.md](./CONTROLLER_IMPROVEMENTS_GUIDE.md)** - Implementation details
 
 ---
 

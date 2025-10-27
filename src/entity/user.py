@@ -6,70 +6,9 @@ from .supabase_config import get_supabase, SUPABASE_KEY
 
 class User:
     @staticmethod
-    def create_user(username: str, password: str, email: str, full_name: str, role_id: int) -> Optional[Dict]:
-        """Create a new user account"""
-        supabase = get_supabase()
-        
-        try:
-            user_data = {
-                "username": username,
-                "password": generate_password_hash(password),
-                "email": email,
-                "full_name": full_name,
-                "role_id": role_id,
-                "is_active": True,
-                "created_at": datetime.utcnow().isoformat()
-            }
-            
-            # Check if username exists
-            existing = supabase.table('users').select("*").eq('username', username).execute()
-            if existing.data:
-                return None
-            
-            result = supabase.table('users').insert(user_data).execute()
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error creating user: {str(e)}")
-            return None
-
-    @staticmethod
-    def get_user_by_username(username: str) -> Optional[Dict]:
-        """Get user by username"""
-        supabase = get_supabase()
-        
-        try:
-            result = supabase.table('users').select("*").eq('username', username).execute()
-            return result.data[0] if result.data else None
-        except Exception as e:
-            print(f"Error getting user: {str(e)}")
-            return None
-
-    @staticmethod
-    def check_login(username: str, password: str) -> Tuple[bool, Optional[Dict]]:
-        """Validate user login credentials"""
-        user = User.get_user_by_username(username)
-        if not user:
-            return False, None
-            
-        if not check_password_hash(user['password'], password):
-            return False, None
-            
-        if not user['is_active']:
-            return False, None
-            
-        # Update last_login
-        supabase = get_supabase()
-        supabase.table('users').update({
-            "last_login": datetime.utcnow().isoformat()
-        }).eq('id', user['id']).execute()
-            
-        return True, user
-
-    @staticmethod
     def authenticate_user(username: str, password: str, role_name: str = None) -> Optional[Dict]:
         """
-        CONTROL LAYER: Complete authentication with token generation
+        Complete authentication with token generation
         
         This method contains ALL authentication logic:
         - Verify user exists
@@ -130,6 +69,98 @@ class User:
         except Exception as e:
             print(f"Error during authentication: {str(e)}")
             return None
+        
+    @staticmethod
+    def create_user(username: str, password: str, email: str, full_name: str, role_id: int) -> Optional[Dict]:
+        """
+        Create a new user account.
+
+        Returns a structured dict:
+          - {'data': user_dict} on success
+          - {'error': CODE, 'message': '...'} on failure
+        """
+        supabase = get_supabase()
+
+        try:
+            # Prepare payload
+            user_data = {
+                "username": username,
+                "password": generate_password_hash(password),
+                "email": email,
+                "full_name": full_name,
+                "role_id": role_id,
+                "is_active": True,
+                "created_at": datetime.utcnow().isoformat()
+            }
+
+            # Final safety checks (race-condition safe)
+            if supabase.table('users').select("id").eq('username', username).execute().data:
+                return { 'error': 'USERNAME_EXISTS', 'message': 'Username already exists' }
+            if supabase.table('users').select("id").eq('email', email).execute().data:
+                return { 'error': 'EMAIL_EXISTS', 'message': 'Email already exists' }
+
+            # Insert
+            result = supabase.table('users').insert(user_data).execute()
+
+            if result.data:
+                created_user = result.data[0]
+                return { 'data': created_user }
+
+            # Defensive checks if insert returned no data
+            if supabase.table('users').select("id").eq('username', username).execute().data:
+                return { 'error': 'USERNAME_EXISTS', 'message': 'Username already exists (post-insert check)' }
+            if supabase.table('users').select("id").eq('email', email).execute().data:
+                return { 'error': 'EMAIL_EXISTS', 'message': 'Email already exists (post-insert check)' }
+
+            return { 'error': 'DB_INSERT_FAILED', 'message': 'Failed to insert user into database' }
+
+        except Exception as e:
+            msg = str(e)
+            # Best-effort duplicate detection
+            if 'unique' in msg.lower() or 'duplicate' in msg.lower():
+                try:
+                    if supabase.table('users').select("id").eq('username', username).execute().data:
+                        return { 'error': 'USERNAME_EXISTS', 'message': 'Username already exists' }
+                    if supabase.table('users').select("id").eq('email', email).execute().data:
+                        return { 'error': 'EMAIL_EXISTS', 'message': 'Email already exists' }
+                except Exception:
+                    pass
+
+            print(f"[ERROR] Error creating user '{username}': {msg}")
+            return { 'error': 'EXCEPTION', 'message': msg }
+
+    @staticmethod
+    def get_user_by_username(username: str) -> Optional[Dict]:
+        """Get user by username"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('users').select("*").eq('username', username).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error getting user: {str(e)}")
+            return None
+
+    @staticmethod
+    def check_login(username: str, password: str) -> Tuple[bool, Optional[Dict]]:
+        """Validate user login credentials"""
+        user = User.get_user_by_username(username)
+        if not user:
+            return False, None
+            
+        if not check_password_hash(user['password'], password):
+            return False, None
+            
+        if not user['is_active']:
+            return False, None
+            
+        # Update last_login
+        supabase = get_supabase()
+        supabase.table('users').update({
+            "last_login": datetime.utcnow().isoformat()
+        }).eq('id', user['id']).execute()
+            
+        return True, user
 
     @staticmethod
     def update_user(user_id: int, updates: Dict) -> Optional[Dict]:
@@ -247,12 +278,11 @@ class User:
             print(f"Error searching users: {str(e)}")
             return []
 
-    # ==================== ENHANCED BUSINESS LOGIC ====================
     
     @staticmethod
     def invalidate_session_token(token: str) -> bool:
         """
-        CONTROL LAYER: Invalidate a session token
+        Invalidate a session token
         
         For MVP: JWT is stateless, so we just verify it's valid
         Future: Could implement token blacklist in database
@@ -286,7 +316,7 @@ class User:
     @staticmethod
     def get_user_complete_details(user_id: int) -> Optional[Dict]:
         """
-        CONTROL LAYER: Get complete user details with related data
+        Get complete user details with related data
         
         Returns user info with:
         - Role details
@@ -327,7 +357,7 @@ class User:
     @staticmethod
     def get_all_active_users() -> List[Dict]:
         """
-        CONTROL LAYER: Get all active users
+        Get all active users
         
         Returns:
             List of active users with role information
@@ -346,7 +376,7 @@ class User:
     @staticmethod
     def get_users_by_role(role_id: int) -> List[Dict]:
         """
-        CONTROL LAYER: Get all users with a specific role
+        Get all users with a specific role
         
         Args:
             role_id: Role ID to filter by
@@ -365,7 +395,7 @@ class User:
     @staticmethod
     def get_users_by_role_name(role_name: str) -> List[Dict]:
         """
-        CONTROL LAYER: Get all users with a specific role name
+        Get all users with a specific role name
         
         Args:
             role_name: Role name to filter by
@@ -386,7 +416,7 @@ class User:
     @staticmethod
     def count_users() -> int:
         """
-        CONTROL LAYER: Get total count of users
+        Get total count of users
         
         Returns:
             Total number of users
@@ -402,7 +432,7 @@ class User:
     @staticmethod
     def count_active_users() -> int:
         """
-        CONTROL LAYER: Get count of active users
+        Get count of active users
         
         Returns:
             Number of active users
@@ -418,7 +448,7 @@ class User:
     @staticmethod
     def email_exists(email: str) -> bool:
         """
-        CONTROL LAYER: Check if email already exists
+        Check if email already exists
         
         Args:
             email: Email to check
@@ -437,7 +467,7 @@ class User:
     @staticmethod
     def username_exists(username: str) -> bool:
         """
-        CONTROL LAYER: Check if username already exists
+        Check if username already exists
         
         Args:
             username: Username to check
@@ -452,11 +482,11 @@ class User:
         except Exception as e:
             print(f"Error checking username: {str(e)}")
             return False
-    
+        
     @staticmethod
     def get_user_login_history(user_id: int, limit: int = 10) -> List[Dict]:
         """
-        CONTROL LAYER: Get user login history
+        Get user login history
         
         Args:
             user_id: User ID
@@ -478,7 +508,7 @@ class User:
     @staticmethod
     def log_user_activity(user_id: int, activity_type: str, activity_details: str = None) -> Optional[Dict]:
         """
-        CONTROL LAYER: Log user activity
+        Log user activity
         
         Args:
             user_id: User ID

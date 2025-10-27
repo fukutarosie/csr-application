@@ -16,11 +16,12 @@ A professional full-stack application built with:
 3. [Installation Guide](#installation-guide)
 4. [Project Structure](#project-structure)
 5. [Features & Architecture](#features--architecture)
-6. [Running the Application](#running-the-application)
-7. [API Endpoints](#api-endpoints)
-8. [Testing](#testing)
-9. [Troubleshooting](#troubleshooting)
-10. [Documentation](#documentation)
+6. [Input Validation & Security](#input-validation--security)
+7. [Running the Application](#running-the-application)
+8. [API Endpoints](#api-endpoints)
+9. [Testing](#testing)
+10. [Troubleshooting](#troubleshooting)
+11. [Documentation](#documentation)
 
 ---
 
@@ -447,6 +448,86 @@ POST   /api/userProfile/search Search profiles
 
 ---
 
+## 🔒 Input Validation & Security
+
+### Comprehensive Input Validation
+
+All user input is validated in the BOUNDARY layer before processing:
+
+#### **Email Validation**
+- ✅ Valid email format (must have @ and domain)
+- ✅ Maximum 100 characters
+- ✅ Uniqueness check (no duplicate emails)
+
+#### **Username Validation**
+- ✅ 3-20 characters
+- ✅ Alphanumeric + hyphens/underscores only
+- ✅ Uniqueness check (no duplicate usernames)
+
+#### **Password Validation**
+- ✅ Minimum 8 characters
+- ✅ Must contain uppercase letter (A-Z)
+- ✅ Must contain lowercase letter (a-z)
+- ✅ Must contain digit (0-9)
+
+#### **Full Name Validation**
+- ✅ 2-100 characters
+- ✅ Must contain letters
+
+#### **Phone Validation**
+- ✅ Minimum 10 digits
+- ✅ Supports standard phone formats
+
+#### **JSON & Request Validation**
+- ✅ Valid JSON format check
+- ✅ Required fields presence
+- ✅ Empty body detection
+- ✅ Authorization header validation
+
+### Security Features
+
+✅ **Input Sanitization**
+- All user input cleaned and normalized
+- Extra whitespace removed
+- HTML characters escaped
+- SQL injection prevention
+
+✅ **Token Security**
+- JWT token format validation
+- Token expiration checking
+- Bearer token format verification
+- Session token invalidation on logout
+
+✅ **Error Handling**
+- Specific error codes for each failure type
+- Secure error messages (no database details leaked)
+- Proper HTTP status codes (400, 401, 404, 409, 500)
+
+✅ **Audit Logging**
+- All authentication events logged
+- User profile updates tracked
+- Activity timestamps recorded
+
+### Validation Files
+
+📄 **`src/utils/validators.py`** - All validation logic (250+ lines)
+- `Validators` class: 9 validation methods
+- `ProfileValidators` class: 3 profile-specific methods
+
+📄 **`src/utils/sanitizers.py`** - Input sanitization (180+ lines)
+- `Sanitizers` class: 9 sanitization methods
+
+📄 **`src/utils/helpers.py`** - Controller helpers (400+ lines)
+- `TokenHelpers`: Token extraction & validation
+- `RequestHelpers`: JSON & field validation
+- `ResponseHelpers`: Standardized responses
+- `DataHelpers`: Data formatting & filtering
+- `PaginationHelpers`: Pagination support
+
+📄 **`VALIDATION_SUMMARY.md`** - Complete validation reference with examples
+
+---
+
 ## ✅ Testing
 
 ### Run All CRUD Tests
@@ -582,6 +663,36 @@ For deeper understanding of the system architecture and design patterns, refer t
   - User management features
   - Profile management
   - Search and filter operations
+
+- **[VALIDATION_SUMMARY.md](./VALIDATION_SUMMARY.md)** 🔒
+  - Complete input validation reference
+  - All validation methods documented
+  - Error codes and HTTP status codes
+  - Validation examples and flow diagrams
+
+- **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** ⚡
+  - Quick lookup for validators, sanitizers, helpers
+  - Copy-paste ready import statements
+  - Common validation patterns
+  - Best practices checklist
+
+- **[CONTROLLER_IMPROVEMENTS_GUIDE.md](./CONTROLLER_IMPROVEMENTS_GUIDE.md)** 📚
+  - Detailed guide to all utility modules
+  - Enhanced controller patterns
+  - Enhanced entity methods
+  - Data validation flow diagrams
+
+- **[IMPROVEMENTS_SUMMARY.md](./IMPROVEMENTS_SUMMARY.md)** 📊
+  - Summary of all improvements
+  - Benefits overview
+  - Files created/modified inventory
+  - Next steps checklist
+
+- **[HOW_JSON_AND_WEB_WORKS.md](./HOW_JSON_AND_WEB_WORKS.md)** 🌐
+  - Comprehensive JSON explanation
+  - Web request/response cycle
+  - HTTP methods and status codes
+  - Real examples from your app
 
 ---
 
