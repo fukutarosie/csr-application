@@ -2,7 +2,8 @@
 
 from flask import Blueprint, request, jsonify
 from src.entity.request import Request
-from src.utils.auth_middleware import require_role, get_user_from_token
+from src.entity import User
+from src.controller.auth.auth_middleware import require_role
 
 search_pin_request_blueprint = Blueprint(
     'search_pin_request',
@@ -17,7 +18,9 @@ class SearchPINRequest:
     def search_requests():
         """Search and filter requests"""
         try:
-            user_data = get_user_from_token()
+            # Get authenticated user from token
+            auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+            user_data = User.verify_session_token(auth_token)
             if not user_data:
                 return jsonify({'success': False, 'message': 'Unauthorized'}), 401
             
