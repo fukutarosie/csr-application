@@ -28,8 +28,7 @@ class UserController:
     def create_user_root():
         """Create a new user (POST endpoint at root)"""
         data = request.get_json()
-        
-        # Validate required fields
+
         if not all(k in data for k in ['username', 'password', 'email', 'full_name', 'role_id']):
             return jsonify({
                 'success': False,
@@ -44,16 +43,25 @@ class UserController:
             role_id=data['role_id']
         )
 
-        if result:
-            return jsonify({
-                'success': True,
-                'data': result
-            }), 201
-        else:
+        if not result:
             return jsonify({
                 'success': False,
                 'message': 'Failed to create user'
-            }), 400
+            }), 500
+
+        if 'error' in result:
+            status = 409 if result['error'] in ['USERNAME_EXISTS', 'EMAIL_EXISTS'] else 400
+            return jsonify({
+                'success': False,
+                'error': result['error'],
+                'message': result.get('message', 'Failed to create user')
+            }), status
+
+        return jsonify({
+            'success': True,
+            'data': result['data'],
+            'message': 'User created successfully'
+        }), 201
 
     @user_blueprint.route('/<int:user_id>', methods=['GET'])
     @require_role(Role.USER_ADMIN)

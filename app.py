@@ -43,6 +43,10 @@ from src.controller.request.update_pin_request import update_pin_request_bluepri
 from src.controller.request.suspend_pin_request import suspend_pin_request_blueprint
 from src.controller.request.search_pin_request import search_pin_request_blueprint
 
+# Consolidated Role and User Controllers
+from src.controller.role.role_controller import role_blueprint
+from src.controller.user.user_controller import user_blueprint
+
 # Register Auth blueprints
 app.register_blueprint(login_blueprint)
 
@@ -66,6 +70,10 @@ app.register_blueprint(view_pin_request_blueprint)
 app.register_blueprint(update_pin_request_blueprint)
 app.register_blueprint(suspend_pin_request_blueprint)
 app.register_blueprint(search_pin_request_blueprint)
+
+# Register consolidated Role and User blueprints
+app.register_blueprint(role_blueprint)
+app.register_blueprint(user_blueprint)
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
