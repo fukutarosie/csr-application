@@ -2,7 +2,8 @@
 
 from flask import Blueprint, request, jsonify
 from src.entity.request import Request
-from src.utils.auth_middleware import require_role, get_user_from_token
+from src.entity import User
+from src.controller.auth.auth_middleware import require_role
 
 create_pin_new_request_blueprint = Blueprint(
     'create_pin_new_request',
@@ -44,8 +45,9 @@ class CreatePINNewRequest:
         }
         """
         try:
-            # Get authenticated user
-            user_data = get_user_from_token()
+            # Get authenticated user from token
+            auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+            user_data = User.verify_session_token(auth_token)
             if not user_data:
                 return jsonify({'success': False, 'message': 'Unauthorized'}), 401
             
