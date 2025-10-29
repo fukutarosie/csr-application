@@ -2,6 +2,7 @@ from functools import wraps
 from flask import request, jsonify
 from src.entity import User, Role
 
+
 def require_role(*allowed_roles):
     def decorator(f):
         @wraps(f)
@@ -13,11 +14,9 @@ def require_role(*allowed_roles):
                     'message': 'No token provided'
                 }), 401
 
-            # Remove "Bearer " prefix if present
             if auth_token.startswith('Bearer '):
                 auth_token = auth_token[7:]
 
-            # Verify token and get user
             user = User.verify_session_token(auth_token)
             if not user:
                 return jsonify({
@@ -25,7 +24,6 @@ def require_role(*allowed_roles):
                     'message': 'Invalid or expired token'
                 }), 401
 
-            # Get user's role
             role = Role.get_role_by_id(user['role_id'])
             if not role:
                 return jsonify({
@@ -33,7 +31,6 @@ def require_role(*allowed_roles):
                     'message': 'User role not found'
                 }), 403
 
-            # Check if user's role is in allowed roles
             if role['role_name'] not in allowed_roles:
                 return jsonify({
                     'success': False,
@@ -43,3 +40,21 @@ def require_role(*allowed_roles):
             return f(*args, **kwargs)
         return decorated_function
     return decorator
+
+
+def get_user_from_token():
+    auth_token = request.headers.get('Authorization')
+    if not auth_token:
+        return None
+
+    if auth_token.startswith('Bearer '):
+        auth_token = auth_token[7:]
+
+    if not auth_token:
+        return None
+
+    user = User.verify_session_token(auth_token)
+    if not user:
+        return None
+
+    return user
