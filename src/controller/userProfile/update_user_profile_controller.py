@@ -7,6 +7,7 @@ from src.controller.auth.auth_middleware import require_role
 update_user_profile_blueprint = Blueprint('update_user_profile', __name__, url_prefix='/api/userProfile')
 
 class UpdateUserProfileController:
+    @staticmethod
     @update_user_profile_blueprint.route('/<int:profile_id>', methods=['PUT'])
     @require_role(Role.USER_ADMIN)
     def update(profile_id):

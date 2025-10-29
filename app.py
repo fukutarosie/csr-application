@@ -36,6 +36,13 @@ from src.controller.userProfile.update_user_profile_controller import update_use
 from src.controller.userProfile.suspend_user_profile_controller import suspend_user_profile_blueprint
 from src.controller.userProfile.search_user_profile_controller import search_user_profile_blueprint
 
+# PIN Request Controllers
+from src.controller.request.create_pin_new_request import create_pin_new_request_blueprint
+from src.controller.request.view_pin_request import view_pin_request_blueprint
+from src.controller.request.update_pin_request import update_pin_request_blueprint
+from src.controller.request.suspend_pin_request import suspend_pin_request_blueprint
+from src.controller.request.search_pin_request import search_pin_request_blueprint
+
 # Register Auth blueprints
 app.register_blueprint(login_blueprint)
 
@@ -52,6 +59,13 @@ app.register_blueprint(view_user_profile_blueprint)
 app.register_blueprint(update_user_profile_blueprint)
 app.register_blueprint(suspend_user_profile_blueprint)
 app.register_blueprint(search_user_profile_blueprint)
+
+# Register PIN Request blueprints
+app.register_blueprint(create_pin_new_request_blueprint)
+app.register_blueprint(view_pin_request_blueprint)
+app.register_blueprint(update_pin_request_blueprint)
+app.register_blueprint(suspend_pin_request_blueprint)
+app.register_blueprint(search_pin_request_blueprint)
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])

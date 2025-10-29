@@ -7,6 +7,7 @@ from src.controller.auth.auth_middleware import require_role
 suspend_user_account_blueprint = Blueprint('suspend_user_account', __name__, url_prefix='/api/userAccount')
 
 class SuspendUserAccountController:
+    @staticmethod
     @suspend_user_account_blueprint.route('/<int:user_id>/suspend', methods=['PUT'])
     @require_role(Role.USER_ADMIN)
     def suspend(user_id):
@@ -32,6 +33,7 @@ class SuspendUserAccountController:
                 'message': str(e)
             }), 500
 
+    @staticmethod
     @suspend_user_account_blueprint.route('/<int:user_id>/activate', methods=['PUT'])
     @require_role(Role.USER_ADMIN)
     def activate(user_id):

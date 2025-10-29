@@ -7,6 +7,7 @@ from src.controller.auth.auth_middleware import require_role
 search_user_account_blueprint = Blueprint('search_user_account', __name__, url_prefix='/api/userAccount')
 
 class SearchUserAccountController:
+    @staticmethod
     @search_user_account_blueprint.route('/search', methods=['POST'])
     @require_role(Role.USER_ADMIN)
     def search():

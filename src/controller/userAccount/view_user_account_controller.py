@@ -7,6 +7,7 @@ from src.controller.auth.auth_middleware import require_role
 view_user_account_blueprint = Blueprint('view_user_account', __name__, url_prefix='/api/userAccount')
 
 class ViewUserAccountController:
+    @staticmethod
     @view_user_account_blueprint.route('', methods=['GET'])
     @require_role(Role.USER_ADMIN)
     def view_all():
@@ -24,6 +25,7 @@ class ViewUserAccountController:
                 'message': str(e)
             }), 500
 
+    @staticmethod
     @view_user_account_blueprint.route('/<int:user_id>', methods=['GET'])
     @require_role(Role.USER_ADMIN)
     def view_by_id(user_id):

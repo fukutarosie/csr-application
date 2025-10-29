@@ -61,6 +61,7 @@ def validate_update_user_data(data):
     return True, updates
 
 class UpdateUserAccountController:
+    @staticmethod
     @update_user_account_blueprint.route('/<int:user_id>', methods=['PUT'])
     @require_role(Role.USER_ADMIN)
     def update(user_id):

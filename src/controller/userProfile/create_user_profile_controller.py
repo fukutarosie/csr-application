@@ -7,6 +7,7 @@ from src.controller.auth.auth_middleware import require_role
 create_user_profile_blueprint = Blueprint('create_user_profile', __name__, url_prefix='/api/userProfile')
 
 class CreateUserProfileController:
+    @staticmethod
     @create_user_profile_blueprint.route('', methods=['POST'])
     @require_role(Role.USER_ADMIN)
     def create():

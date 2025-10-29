@@ -82,6 +82,7 @@ def validate_create_user_data(data: dict) -> Tuple[bool, str]:
 
 
 class CreateUserAccountController:
+    @staticmethod
     @create_user_account_blueprint.route('', methods=['POST'])
     @require_role(Role.USER_ADMIN)
     def create():

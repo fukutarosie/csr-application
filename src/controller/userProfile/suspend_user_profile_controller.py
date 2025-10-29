@@ -7,6 +7,7 @@ from src.controller.auth.auth_middleware import require_role
 suspend_user_profile_blueprint = Blueprint('suspend_user_profile', __name__, url_prefix='/api/userProfile')
 
 class SuspendUserProfileController:
+    @staticmethod
     @suspend_user_profile_blueprint.route('/<int:profile_id>/delete', methods=['DELETE'])
     @require_role(Role.USER_ADMIN)
     def delete(profile_id):
