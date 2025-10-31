@@ -1,5 +1,5 @@
 """
-Request Entity Class - PIN/CSR System
+Request Entity Class - PIN /CSR System
 Handles all database operations for PIN requests
 Part of the CONTROL/ENTITY layer (BCE Architecture)
 
