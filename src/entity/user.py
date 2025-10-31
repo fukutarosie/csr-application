@@ -142,6 +142,18 @@ class User:
             return None
 
     @staticmethod
+    def get_user_by_email(email: str) -> Optional[Dict]:
+        """Get user by email"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('users').select("*").eq('email', email).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error getting user by email: {str(e)}")
+            return None
+
+    @staticmethod
     def check_login(username: str, password: str) -> Tuple[bool, Optional[Dict]]:
         """Validate user login credentials"""
         user = User.get_user_by_username(username)
@@ -531,3 +543,13 @@ class User:
         except Exception as e:
             print(f"Error logging activity: {str(e)}")
             return None
+
+    @staticmethod
+    def get_by_id(user_id: int) -> Optional[Dict]:
+        """Compatibility alias for get_user_by_id"""
+        return User.get_user_by_id(user_id)
+
+    @staticmethod
+    def get_by_email(email: str) -> Optional[Dict]:
+        """Compatibility alias for get_user_by_email"""
+        return User.get_user_by_email(email)
