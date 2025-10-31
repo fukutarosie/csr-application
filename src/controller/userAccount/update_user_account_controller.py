@@ -131,7 +131,7 @@ class UpdateUserAccountController:
                 User.log_user_activity(
                     user_id=user_id,
                     activity_type='PROFILE_UPDATE',
-                    details=f'Updated fields: {", ".join(updates.keys())}'
+                    activity_details=f'Updated fields: {", ".join(updates.keys())}'
                 )
                 
                 # Format response
