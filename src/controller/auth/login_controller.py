@@ -177,57 +177,43 @@ class LoginController:
     @login_blueprint.route('/logout', methods=['POST'])
     def logout():
         """
-        Logout endpoint with improved token handling
-
-        Delegates to CONTROL layer which handles:
-        - Token validation
-        - Token invalidation
+        Logout endpoint - Boundary layer only
+        Handles token validation and invalidation response formatting
         """
         try:
-            # ===== Extract Authorization header =====
+            # Extract Authorization header
             auth_header = request.headers.get('Authorization')
-
-            # ===== Validate header format =====
-            is_valid, error_msg = TokenHelpers.validate_bearer_format(auth_header)
-            if not is_valid:
-                response, status = ResponseHelpers.error_response(
-                    message=error_msg,
-                    error_code='INVALID_TOKEN_FORMAT',
-                    status_code=401
-                )
-                return jsonify(response), status
-
-            # ===== Extract token =====
-            token = TokenHelpers.extract_bearer_token(auth_header)
-
-            # ===== CALL CONTROL LAYER =====
-            # User.invalidate_session_token() handles token invalidation logic
+            
+            # Validate header format
+            if not auth_header or 'Bearer ' not in auth_header:
+                return jsonify({
+                    'success': False,
+                    'message': 'Invalid or missing token'
+                }), 401
+            
+            # Extract token
+            token = auth_header.replace('Bearer ', '')
+            
+            # Call Entity directly to invalidate token
             success = User.invalidate_session_token(token)
-
-            # ===== Handle CONTROL layer response =====
+            
             if success:
-                response, status = ResponseHelpers.success_response(
-                    message='Logout successful',
-                    status_code=200
-                )
-                return jsonify(response), status
+                return jsonify({
+                    'success': True,
+                    'message': 'Logout successful'
+                }), 200
             else:
-                response, status = ResponseHelpers.error_response(
-                    message='Logout failed',
-                    error_code='LOGOUT_FAILED',
-                    status_code=400
-                )
-                return jsonify(response), status
-
+                return jsonify({
+                    'success': False,
+                    'message': 'Logout failed'
+                }), 400
+                
         except Exception as e:
-            # ===== Catch and format exceptions =====
-            print(f"[ERROR] Logout endpoint error: {str(e)}")
-            response, status = ResponseHelpers.error_response(
-                message='An error occurred during logout',
-                error_code='SERVER_ERROR',
-                status_code=500
-            )
-            return jsonify(response), status
+            print(f"[ERROR] Logout error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'An error occurred during logout'
+            }), 500
 
     @login_blueprint.route('/verify', methods=['GET'])
     def verify_session():
