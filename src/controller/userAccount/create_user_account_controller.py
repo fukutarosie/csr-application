@@ -6,7 +6,7 @@ from src.entity import User, Role
 from src.controller.auth.auth_middleware import require_role
 from src.utils.validators import Validators
 from src.utils.sanitizers import Sanitizers
-from src.utils.helpers import RequestHelpers, ResponseHelpers
+from src.utils.helpers import RequestHelpers, ResponseHelpers, DataHelpers
 
 create_user_account_blueprint = Blueprint('create_user_account', __name__, url_prefix='/api/userAccount')
 
@@ -144,7 +144,7 @@ class CreateUserAccountController:
             # Success
             if result and isinstance(result, dict) and 'data' in result:
                 created = result['data']
-                response_data = ResponseHelpers.format_user_response(created)
+                response_data = DataHelpers.format_user_response(created)
 
                 response, status = ResponseHelpers.success_response(
                     data=response_data,
@@ -202,7 +202,9 @@ class CreateUserAccountController:
             return jsonify(response), status
 
         except Exception as e:
+            import traceback
             print(f"[ERROR] Create user endpoint error: {str(e)}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
             response, status = ResponseHelpers.error_response(
                 message='An unexpected error occurred while creating user account. Please try again.',
                 error_code='SERVER_ERROR',
