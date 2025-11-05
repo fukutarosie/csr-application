@@ -10,12 +10,13 @@ from src.utils.helpers import RequestHelpers, ResponseHelpers, DataHelpers
 update_user_account_blueprint = Blueprint('update_user_account', __name__, url_prefix='/api/userAccount')
 
 
-def validate_update_user_data(data):
+def validate_update_user_data(data, current_user_id):
     """
     Validate user update data
     
     Args:
         data (dict): User data to validate
+        current_user_id (int): ID of the user being updated
     
     Returns:
         tuple: (is_valid: bool, error_message: str)
@@ -23,7 +24,7 @@ def validate_update_user_data(data):
     updates = {}
     
     # Check if email exists and validate
-    if 'email' in data:
+    if 'email' in data and data['email']:
         email = data['email']
         is_valid, error = Validators.validate_email(email)
         if not is_valid:
@@ -31,8 +32,13 @@ def validate_update_user_data(data):
         
         # Check if email already exists (optional - only if different from current)
         existing_email = User.get_by_email(email)
-        if existing_email and existing_email.get('id') != data.get('current_user_id'):
-            return False, 'Email already in use'
+        if existing_email:
+            # If email exists, only block if it belongs to a DIFFERENT user
+            existing_user_id = existing_email.get('id')
+            if existing_user_id != current_user_id:
+                print(f"[DEBUG] Email '{email}' already exists for user {existing_user_id}, current user is {current_user_id}")
+                return False, 'Email already in use'
+            print(f"[DEBUG] Email '{email}' belongs to same user {current_user_id}, allowing update")
         
         updates['email'] = email
     
@@ -110,8 +116,8 @@ class UpdateUserAccountController:
             # Sanitize data
             sanitized = Sanitizers.sanitize_user_data(data)
             
-            # Validate updates
-            is_valid, result = validate_update_user_data(sanitized)
+            # Validate updates - pass user_id directly
+            is_valid, result = validate_update_user_data(sanitized, user_id)
             if not is_valid:
                 response, status = ResponseHelpers.error_response(
                     message=result,

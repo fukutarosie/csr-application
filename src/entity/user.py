@@ -185,7 +185,17 @@ class User:
                 updates['password'] = generate_password_hash(updates['password'])
                 
             result = supabase.table('users').update(updates).eq('id', user_id).execute()
-            return result.data[0] if result.data else None
+            
+            # If update was successful, return the updated user
+            if result.data and len(result.data) > 0:
+                return result.data[0]
+            
+            # If no data returned, verify the user still exists and return it
+            user = User.get_user_by_id(user_id)
+            if user:
+                return user
+            
+            return None
         except Exception as e:
             print(f"Error updating user: {str(e)}")
             return None
