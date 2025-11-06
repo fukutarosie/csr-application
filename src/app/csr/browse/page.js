@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import Header from '../components/Header';
-import Alert from '../components/Alert';
-import RequestCard from '../components/RequestCard';
-import RequestCardGrid from '../components/RequestCardGrid';
+import Header from '../../components/Header';
+import Alert from '../../components/Alert';
+import RequestCard from '../../components/RequestCard';
+import RequestCardGrid from '../../components/RequestCardGrid';
 
-export default function CSRDashboard() {
+export default function BrowseRequests() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,7 +24,6 @@ export default function CSRDashboard() {
   const getToken = () => localStorage.getItem('token');
 
   useEffect(() => {
-    // Check if user is logged in and has CSR Rep role
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
 
@@ -73,51 +72,18 @@ export default function CSRDashboard() {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/requests?status=ACTIVE');
+      const response = await axios.get('http://localhost:5000/api/requests', {
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+        params: { status: 'ACTIVE' }
+      });
+
       if (response.data.success) {
         setRequests(response.data.data);
-      } else {
-        setError(response.data.message);
       }
     } catch (err) {
       console.error('Failed to fetch requests:', err);
-      setError('Failed to load opportunities');
+      setError('Failed to load requests');
     }
-  };
-
-  const handleToggleShortlist = async (requestId) => {
-    const isCurrentlyShortlisted = shortlistedIds.includes(requestId);
-    setAddingToShortlist(requestId);
-
-    try {
-      if (isCurrentlyShortlisted) {
-        // Remove from shortlist
-        await axios.delete(`http://localhost:5000/api/shortlist/${requestId}`, {
-          headers: { 'Authorization': `Bearer ${getToken()}` }
-        });
-        setShortlistedIds(shortlistedIds.filter(id => id !== requestId));
-        setSuccess('Removed from shortlist');
-      } else {
-        // Add to shortlist
-        await axios.post('http://localhost:5000/api/shortlist', 
-          { request_id: requestId },
-          { headers: { 'Authorization': `Bearer ${getToken()}` } }
-        );
-        setShortlistedIds([...shortlistedIds, requestId]);
-        setSuccess('Added to shortlist');
-      }
-      setTimeout(() => setSuccess(''), 3000);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update shortlist');
-      setTimeout(() => setError(''), 3000);
-    } finally {
-      setAddingToShortlist(null);
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchKeyword('');
-    setSearchServiceType('');
   };
 
   const filteredRequests = requests.filter(request => {
@@ -131,30 +97,68 @@ export default function CSRDashboard() {
     return matchesKeyword && matchesServiceType;
   });
 
+  const handleToggleShortlist = async (requestId) => {
+    const isShortlisted = shortlistedIds.includes(requestId);
+    
+    setAddingToShortlist(requestId);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (isShortlisted) {
+        // Find the shortlist item to get its ID
+        const shortlistResponse = await axios.get('http://localhost:5000/api/shortlist', {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+        const shortlistItem = shortlistResponse.data.data.find(item => item.request_id === requestId);
+        
+        if (shortlistItem) {
+          await axios.delete(
+            `http://localhost:5000/api/shortlist/${shortlistItem.id}`,
+            { headers: { 'Authorization': `Bearer ${getToken()}` } }
+          );
+          setSuccess('Removed from shortlist!');
+          setShortlistedIds(prev => prev.filter(id => id !== requestId));
+        }
+      } else {
+        const response = await axios.post(
+          'http://localhost:5000/api/shortlist',
+          { request_id: requestId },
+          { headers: { 'Authorization': `Bearer ${getToken()}` } }
+        );
+
+        if (response.data.success) {
+          setSuccess('Added to shortlist!');
+          setShortlistedIds(prev => [...prev, requestId]);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to toggle shortlist:', err);
+      if (err.response?.status === 400) {
+        setError(err.response.data.message || 'Failed to update shortlist');
+      } else {
+        setError('Failed to update shortlist');
+      }
+    } finally {
+      setAddingToShortlist(null);
+    }
+  };
+
+  const clearFilters = () => {
+    setSearchKeyword('');
+    setSearchServiceType('');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mb-4"></div>
           <p className="text-gray-600">Loading...</p>
         </div>
       </div>
     );
   }
-
-  const StatusBadge = ({ status }) => {
-    const colors = {
-      'SHORTLISTED': 'bg-purple-100 text-purple-800',
-      'IN_PROGRESS': 'bg-blue-100 text-blue-800',
-      'COMPLETED': 'bg-green-100 text-green-800',
-      'DECLINED': 'bg-red-100 text-red-800'
-    };
-    return (
-      <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
-        {status.replace('_', ' ')}
-      </span>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -172,29 +176,7 @@ export default function CSRDashboard() {
         </div>
       )}
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          <button
-            onClick={() => router.push('/csr/shortlist')}
-            className="bg-gradient-to-r from-purple-600 to-purple-700 text-white rounded-lg shadow-lg p-6 hover:from-purple-700 hover:to-purple-800 transition-all transform hover:scale-105"
-          >
-            <div className="text-4xl mb-3">�</div>
-            <h3 className="font-bold text-lg mb-2">My Shortlist</h3>
-            <p className="text-sm opacity-90">Manage your shortlisted requests</p>
-          </button>
-
-          <button
-            onClick={() => router.push('/csr/history')}
-            className="bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg shadow-lg p-6 hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-105"
-          >
-            <div className="text-4xl mb-3">�</div>
-            <h3 className="font-bold text-lg mb-2">History</h3>
-            <p className="text-sm opacity-90">View completed volunteering activities</p>
-          </button>
-        </div>
-
         {/* Search Panel */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">🔍 Search Opportunities</h2>
@@ -238,10 +220,10 @@ export default function CSRDashboard() {
           )}
         </div>
 
-        {/* All Opportunities Grid */}
+        {/* Opportunities Grid */}
         <RequestCardGrid
           emptyMessage="No Opportunities Found"
-          emptyIcon="�"
+          emptyIcon="🔍"
           emptyAction={
             (searchKeyword || searchServiceType) ? (
               <button

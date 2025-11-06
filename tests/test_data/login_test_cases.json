@@ -1,0 +1,118 @@
+{
+  "valid_logins": [
+    {
+      "test_name": "admin_login_success",
+      "username": "admin1",
+      "password": "password123",
+      "expected_status": 200,
+      "expected_role": "User Admin",
+      "description": "Admin user should login successfully with correct credentials"
+    },
+    {
+      "test_name": "pin_user_login_success",
+      "username": "pin_user1",
+      "password": "password123",
+      "expected_status": 200,
+      "expected_role": "PIN",
+      "description": "PIN user should login successfully with correct credentials"
+    },
+    {
+      "test_name": "csr_rep_login_success",
+      "username": "csr_rep1",
+      "password": "password123",
+      "expected_status": 200,
+      "expected_role": "CSR Rep",
+      "description": "CSR Rep should login successfully with correct credentials"
+    },
+    {
+      "test_name": "platform_mgr_login_success",
+      "username": "platform_mgr1",
+      "password": "password123",
+      "expected_status": 200,
+      "expected_role": "Platform Management",
+      "description": "Platform Manager should login successfully with correct credentials"
+    }
+  ],
+  "invalid_logins": [
+    {
+      "test_name": "wrong_password",
+      "username": "admin1",
+      "password": "wrongpassword",
+      "role_name": "User Admin",
+      "expected_status": 401,
+      "expected_message": "Invalid credentials",
+      "description": "Login should fail with incorrect password"
+    },
+    {
+      "test_name": "wrong_username",
+      "username": "nonexistentuser",
+      "password": "password123",
+      "role_name": "User Admin",
+      "expected_status": 401,
+      "expected_message": "Invalid credentials",
+      "description": "Login should fail with non-existent username"
+    },
+    {
+      "test_name": "empty_username",
+      "username": "",
+      "password": "password123",
+      "role_name": "",
+      "expected_status": 400,
+      "expected_message": "Missing required fields",
+      "description": "Login should fail with empty username"
+    },
+    {
+      "test_name": "empty_password",
+      "username": "admin1",
+      "password": "",
+      "role_name": "",
+      "expected_status": 400,
+      "expected_message": "Missing required fields",
+      "description": "Login should fail with empty password"
+    },
+    {
+      "test_name": "missing_username",
+      "username": null,
+      "password": "password123",
+      "role_name": null,
+      "expected_status": 400,
+      "expected_message": "Missing required fields",
+      "description": "Login should fail when username is missing"
+    },
+    {
+      "test_name": "missing_password",
+      "username": "admin1",
+      "password": null,
+      "role_name": null,
+      "expected_status": 400,
+      "expected_message": "Missing required fields",
+      "description": "Login should fail when password is missing"
+    }
+  ],
+  "edge_cases": [
+    {
+      "test_name": "sql_injection_attempt",
+      "username": "admin' OR '1'='1",
+      "password": "password123",
+      "expected_status": 400,
+      "expected_message": "Invalid",
+      "description": "Login should safely handle SQL injection attempts with validation error"
+    },
+    {
+      "test_name": "xss_attempt",
+      "username": "<script>alert('xss')</script>",
+      "password": "password123",
+      "expected_status": 400,
+      "expected_message": "Invalid",
+      "description": "Login should safely handle XSS attempts with validation error"
+    },
+    {
+      "test_name": "case_sensitive_username",
+      "username": "ADMIN1",
+      "password": "password123",
+      "expected_status": 200,
+      "expected_message": "Login successful",
+      "description": "Username is NOT case-sensitive in database (Supabase default)"
+    }
+  ]
+}

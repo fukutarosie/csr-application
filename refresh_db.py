@@ -21,7 +21,8 @@ except Exception as e:
 # Step 2: Create test users with consistent password: 'password123'
 print("\n2. Creating test users...")
 test_password = 'password123'
-hashed_password = generate_password_hash(test_password)
+# Use pbkdf2:sha256 to avoid requiring cryptography library
+hashed_password = generate_password_hash(test_password, method='pbkdf2:sha256')
 
 test_users = [
     # Admin users

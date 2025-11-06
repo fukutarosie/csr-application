@@ -6,8 +6,8 @@ from flask_cors import CORS
 # Load environment variables
 load_dotenv()
 
-# Create Flask app
-app = Flask(__name__)
+# Create Flask app with static folder configured
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 
 # Configure Flask
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
@@ -42,6 +42,17 @@ from src.controller.request.view_pin_request import view_pin_request_blueprint
 from src.controller.request.update_pin_request import update_pin_request_blueprint
 from src.controller.request.suspend_pin_request import suspend_pin_request_blueprint
 from src.controller.request.search_pin_request import search_pin_request_blueprint
+from src.controller.request.get_pin_requests_controller import get_pin_requests_blueprint
+from src.controller.request.get_request_analytics_controller import get_request_analytics_blueprint
+from src.controller.request.get_completed_matches_controller import get_completed_matches_blueprint
+from src.controller.request.get_request_lookups_controller import get_request_lookups_blueprint
+
+# CSR Shortlist Controllers
+from src.controller.shortlist.add_to_shortlist_controller import add_to_shortlist_blueprint
+from src.controller.shortlist.get_shortlist_controller import get_shortlist_blueprint
+from src.controller.shortlist.update_shortlist_status_controller import update_shortlist_status_blueprint
+from src.controller.shortlist.remove_from_shortlist_controller import remove_from_shortlist_blueprint
+from src.controller.shortlist.get_shortlist_stats_controller import get_shortlist_stats_blueprint
 
 # Consolidated Role and User Controllers
 from src.controller.role.role_controller import role_blueprint
@@ -70,6 +81,17 @@ app.register_blueprint(view_pin_request_blueprint)
 app.register_blueprint(update_pin_request_blueprint)
 app.register_blueprint(suspend_pin_request_blueprint)
 app.register_blueprint(search_pin_request_blueprint)
+app.register_blueprint(get_pin_requests_blueprint)
+app.register_blueprint(get_request_analytics_blueprint)
+app.register_blueprint(get_completed_matches_blueprint)
+app.register_blueprint(get_request_lookups_blueprint)
+
+# Register CSR Shortlist blueprints
+app.register_blueprint(add_to_shortlist_blueprint)
+app.register_blueprint(get_shortlist_blueprint)
+app.register_blueprint(update_shortlist_status_blueprint)
+app.register_blueprint(remove_from_shortlist_blueprint)
+app.register_blueprint(get_shortlist_stats_blueprint)
 
 # Register consolidated Role and User blueprints
 app.register_blueprint(role_blueprint)

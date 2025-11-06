@@ -47,7 +47,8 @@ export default function UserAdminDashboard() {
   const [editProfileForm, setEditProfileForm] = useState({
     role_name: '',
     role_code: '',
-    description: ''
+    description: '',
+    dashboard_route: ''
   });
 
   const [roles, setRoles] = useState([]);
@@ -611,7 +612,8 @@ export default function UserAdminDashboard() {
                                   setEditProfileForm({
                                     role_name: profile.role_name,
                                     role_code: profile.role_code,
-                                    description: profile.description
+                                    description: profile.description,
+                                    dashboard_route: profile.dashboard_route
                                   });
                                 }}
                                 className="text-blue-600 hover:text-blue-900"
@@ -884,6 +886,8 @@ export default function UserAdminDashboard() {
                     rows="3"
                   />
                 </div>
+                {/* Dashboard Route is hidden but maintained in state for API */}
+                <input type="hidden" value={editProfileForm.dashboard_route} />
                 <div className="flex gap-3">
                   <button
                     type="submit"

@@ -387,10 +387,10 @@ class Shortlist:
             return {
                 'total_shortlisted': len(entries),
                 'shortlisted': len([e for e in entries if e['status'] == Shortlist.STATUS_SHORTLISTED]),
-                'in_progress': len([e for e in entries if e['status'] == Shortlist.STATUS_IN_PROGRESS]),
+                'inProgress': len([e for e in entries if e['status'] == Shortlist.STATUS_IN_PROGRESS]),
                 'completed': len([e for e in entries if e['status'] == Shortlist.STATUS_COMPLETED]),
                 'declined': len([e for e in entries if e['status'] == Shortlist.STATUS_DECLINED]),
-                'total_hours': total_hours
+                'totalHoursVolunteered': total_hours
             }
             
         except Exception as e:

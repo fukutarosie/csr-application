@@ -2,12 +2,32 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 import Header from '../components/Header';
+import Alert from '../components/Alert';
+import RequestCard from '../components/RequestCard';
+import RequestCardGrid from '../components/RequestCardGrid';
 
 export default function PINDashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    activeRequests: 0,
+    suspendedRequests: 0,
+    fulfilledRequests: 0,
+    totalViews: 0,
+    totalShortlists: 0
+  });
+  const [requests, setRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
+  const [filterStatus, setFilterStatus] = useState('ACTIVE');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchServiceType, setSearchServiceType] = useState('');
+  const [serviceTypes, setServiceTypes] = useState([]);
+  const [error, setError] = useState('');
+
+  const getToken = () => localStorage.getItem('token');
 
   useEffect(() => {
     // Check if user is logged in and has PIN role
@@ -19,20 +39,105 @@ export default function PINDashboard() {
       return;
     }
 
-    const user = JSON.parse(userData);
-    if (user.role.name !== 'PIN') {
+    const parsedUser = JSON.parse(userData);
+    if (parsedUser.role.name !== 'PIN') {
       router.push('/');
       return;
     }
 
-    setUser(user);
+    setUser(parsedUser);
+    fetchServiceTypes();
     setLoading(false);
   }, [router]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/');
+  useEffect(() => {
+    if (user) {
+      fetchRequests();
+    }
+  }, [user, filterStatus]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [requests, searchKeyword, searchServiceType]);
+
+  const fetchServiceTypes = async () => {
+    try {
+      const token = getToken();
+      if (!token) return;
+
+      const response = await axios.get(
+        'http://localhost:5000/api/requests/service-types',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        setServiceTypes(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching service types:', err);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...requests];
+
+    // Filter by keyword (search in title and description)
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+      filtered = filtered.filter(req => 
+        req.title?.toLowerCase().includes(keyword) ||
+        req.description?.toLowerCase().includes(keyword)
+      );
+    }
+
+    // Filter by service type
+    if (searchServiceType) {
+      filtered = filtered.filter(req => req.service_type === searchServiceType);
+    }
+
+    setFilteredRequests(filtered);
+  };
+
+  const clearFilters = () => {
+    setSearchKeyword('');
+    setSearchServiceType('');
+  };
+
+  const fetchRequests = async () => {
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/api/requests?status=${filterStatus}`,
+        {
+          headers: { Authorization: `Bearer ${getToken()}` },
+          params: { page: 1, limit: 100 }
+        }
+      );
+
+      if (response.data.success) {
+        const allRequests = response.data.data;
+        setRequests(allRequests);
+        
+        // Calculate stats from all requests
+        const active = allRequests.filter(r => r.status === 'ACTIVE').length;
+        const suspended = allRequests.filter(r => r.status === 'SUSPENDED').length;
+        const fulfilled = allRequests.filter(r => r.status === 'FULFILLED').length;
+        const totalViews = allRequests.reduce((sum, r) => sum + (r.view_count || 0), 0);
+        const totalShortlists = allRequests.reduce((sum, r) => sum + (r.shortlist_count || 0), 0);
+
+        setStats({
+          activeRequests: active,
+          suspendedRequests: suspended,
+          fulfilledRequests: fulfilled,
+          totalViews,
+          totalShortlists
+        });
+      } else {
+        setError(response.data.message);
+      }
+    } catch (err) {
+      console.error('Failed to fetch requests:', err);
+      setError('Failed to load requests');
+    }
   };
 
   if (loading) {
@@ -46,41 +151,237 @@ export default function PINDashboard() {
     );
   }
 
+  const StatusBadge = ({ status }) => {
+    const colors = {
+      'ACTIVE': 'bg-green-100 text-green-800',
+      'SUSPENDED': 'bg-yellow-100 text-yellow-800',
+      'FULFILLED': 'bg-blue-100 text-blue-800',
+      'CANCELLED': 'bg-red-100 text-red-800'
+    };
+    return (
+      <span className={`px-2 py-1 text-xs font-medium rounded-full ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+        {status}
+      </span>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       <Header title="PIN Dashboard" subtitle={`Welcome, ${user?.full_name}`} />
 
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Alert type="error" message={error} onClose={() => setError('')} />
+        </div>
+      )}
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow p-8 text-center">
-          <div className="text-6xl mb-4">📌</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">PIN Role Dashboard</h2>
-          <p className="text-gray-600 mb-6">This is the dashboard for PIN users.</p>
-          
-          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg text-left inline-block">
-            <p className="text-sm text-gray-700">
-              <strong>User Role:</strong> {user?.role.name}<br />
-              <strong>Email:</strong> {user?.email}
-            </p>
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Active Requests</p>
+                <p className="text-3xl font-bold text-green-600">{stats.activeRequests}</p>
+              </div>
+              <div className="text-4xl">✅</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Suspended</p>
+                <p className="text-3xl font-bold text-yellow-600">{stats.suspendedRequests}</p>
+              </div>
+              <div className="text-4xl">⏸️</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Fulfilled</p>
+                <p className="text-3xl font-bold text-blue-600">{stats.fulfilledRequests}</p>
+              </div>
+              <div className="text-4xl">🎉</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Total Views</p>
+                <p className="text-3xl font-bold text-purple-600">{stats.totalViews}</p>
+              </div>
+              <div className="text-4xl">👁️</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600">Shortlisted</p>
+                <p className="text-3xl font-bold text-indigo-600">{stats.totalShortlists}</p>
+              </div>
+              <div className="text-4xl">⭐</div>
+            </div>
           </div>
         </div>
 
-        {/* Feature Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-4xl mb-3">📊</div>
-            <h3 className="font-bold text-lg mb-2">Reports</h3>
-            <p className="text-gray-600 text-sm">View and generate reports</p>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <button
+            onClick={() => router.push('/pin/request/new')}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg shadow-lg p-6 text-left transition-all duration-200 transform hover:scale-105"
+          >
+            <div className="text-4xl mb-3">➕</div>
+            <h3 className="font-bold text-lg mb-2">Create New Request</h3>
+            <p className="text-blue-100 text-sm">Submit a new request for help</p>
+          </button>
+
+          <button
+            onClick={() => router.push('/pin/history')}
+            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg shadow-lg p-6 text-left transition-all duration-200 transform hover:scale-105"
+          >
+            <div className="text-4xl mb-3">�</div>
+            <h3 className="font-bold text-lg mb-2">View History</h3>
+            <p className="text-green-100 text-sm">See completed matches</p>
+          </button>
+        </div>
+
+        {/* Status Filter Tabs */}
+        <div className="bg-white rounded-lg shadow mb-6">
+          <div className="border-b border-gray-200">
+            <nav className="flex -mb-px">
+              <button
+                onClick={() => setFilterStatus('ACTIVE')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                  filterStatus === 'ACTIVE'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Active ({stats.activeRequests})
+              </button>
+              <button
+                onClick={() => setFilterStatus('SUSPENDED')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                  filterStatus === 'SUSPENDED'
+                    ? 'border-yellow-500 text-yellow-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Suspended ({stats.suspendedRequests})
+              </button>
+              <button
+                onClick={() => setFilterStatus('FULFILLED')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                  filterStatus === 'FULFILLED'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Fulfilled ({stats.fulfilledRequests})
+              </button>
+            </nav>
           </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-4xl mb-3">✅</div>
-            <h3 className="font-bold text-lg mb-2">Approvals</h3>
-            <p className="text-gray-600 text-sm">Manage pending approvals</p>
+
+          {/* Search Panel */}
+          <div className="p-6">
+            <h2 className="text-lg font-semibold mb-4">🔍 Search & Filter</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <input
+                  type="text"
+                  placeholder="Search by title or description..."
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <select
+                  value={searchServiceType}
+                  onChange={(e) => setSearchServiceType(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Service Types</option>
+                  {serviceTypes.map((type) => (
+                    <option key={type.id} value={type.service_name}>
+                      {type.service_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            {(searchKeyword || searchServiceType) && (
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-sm text-gray-600">
+                  Found {filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'}
+                </p>
+                <button
+                  onClick={clearFilters}
+                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
           </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-4xl mb-3">📋</div>
-            <h3 className="font-bold text-lg mb-2">Tasks</h3>
-            <p className="text-gray-600 text-sm">Track your tasks</p>
+        </div>
+
+        {/* All Requests Grid */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-bold text-gray-900">
+              {filterStatus.charAt(0) + filterStatus.slice(1).toLowerCase()} Requests
+            </h2>
+          </div>
+          <div className="p-6">
+            <RequestCardGrid
+              emptyMessage={`No ${filterStatus.toLowerCase()} requests ${searchKeyword || searchServiceType ? 'match your search' : 'yet'}`}
+              emptyIcon="📝"
+              emptyAction={
+                (searchKeyword || searchServiceType) ? (
+                  <button
+                    onClick={clearFilters}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+                  >
+                    Clear Filters
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => router.push('/pin/request/new')}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+                  >
+                    Create Your First Request
+                  </button>
+                )
+              }
+            >
+              {filteredRequests.map((request) => (
+                <RequestCard
+                  key={request.id}
+                  request={request}
+                  onClick={() => router.push(`/pin/request/${request.id}`)}
+                  theme="blue"
+                  extraInfo={
+                    <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center text-gray-600">
+                        <span className="mr-1">👁️</span>
+                        <span>{request.view_count || 0} views</span>
+                      </div>
+                      <div className="flex items-center text-gray-600">
+                        <span className="mr-1">⭐</span>
+                        <span>{request.shortlist_count || 0} saved</span>
+                      </div>
+                    </div>
+                  }
+                />
+              ))}
+            </RequestCardGrid>
           </div>
         </div>
       </main>

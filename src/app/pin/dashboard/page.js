@@ -3,22 +3,71 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import Link from 'next/link';
+import Header from '../../components/Header';
+import RequestCard from '../../components/RequestCard';
+import RequestCardGrid from '../../components/RequestCardGrid';
 
 export default function PINDashboard() {
   const [requests, setRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
-  const [stats, setStats] = useState({
-    total: 0,
-    active: 0,
-    suspended: 0,
-    fulfilled: 0,
-  });
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchServiceType, setSearchServiceType] = useState('');
+  const [serviceTypes, setServiceTypes] = useState([]);
 
   useEffect(() => {
     fetchRequests();
+    fetchServiceTypes();
   }, [filterStatus]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [requests, searchKeyword, searchServiceType]);
+
+  const fetchServiceTypes = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const response = await axios.get(
+        'http://localhost:5000/api/requests/service-types',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        setServiceTypes(response.data.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching service types:', err);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...requests];
+
+    // Filter by keyword (search in title and description)
+    if (searchKeyword.trim()) {
+      const keyword = searchKeyword.toLowerCase();
+      filtered = filtered.filter(req => 
+        req.title?.toLowerCase().includes(keyword) ||
+        req.description?.toLowerCase().includes(keyword)
+      );
+    }
+
+    // Filter by service type
+    if (searchServiceType) {
+      filtered = filtered.filter(req => req.service_type === searchServiceType);
+    }
+
+    setFilteredRequests(filtered);
+  };
+
+  const clearFilters = () => {
+    setSearchKeyword('');
+    setSearchServiceType('');
+  };
 
   const fetchRequests = async () => {
     try {
@@ -39,14 +88,6 @@ export default function PINDashboard() {
 
       if (response.data.success) {
         setRequests(response.data.data || []);
-        
-        // Calculate stats
-        setStats({
-          total: response.data.count || 0,
-          active: response.data.data?.filter(r => r.status === 'ACTIVE').length || 0,
-          suspended: response.data.data?.filter(r => r.status === 'SUSPENDED').length || 0,
-          fulfilled: response.data.data?.filter(r => r.status === 'FULFILLED').length || 0,
-        });
       } else {
         setError(response.data.message);
       }
@@ -68,25 +109,18 @@ export default function PINDashboard() {
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
 
-  const getPriorityBadge = (priority) => {
-    const colors = {
-      LOW: 'bg-blue-50 text-blue-700 border border-blue-200',
-      MEDIUM: 'bg-yellow-50 text-yellow-700 border border-yellow-200',
-      HIGH: 'bg-orange-50 text-orange-700 border border-orange-200',
-      URGENT: 'bg-red-50 text-red-700 border border-red-200',
-    };
-    return colors[priority] || 'bg-gray-50 text-gray-700';
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800">PIN Dashboard</h1>
-            <p className="text-gray-600 mt-2">Manage your service requests</p>
-          </div>
+    <div className="min-h-screen bg-gray-100">
+      <Header title="PIN Dashboard - Manage Requests" subtitle="Manage your service requests" />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Action Button */}
+        <div className="flex justify-end mb-6">
           <Link href="/pin/request/new">
             <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition">
               + New Request
@@ -94,29 +128,9 @@ export default function PINDashboard() {
           </Link>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
-            <p className="text-gray-500 text-sm">Total Requests</p>
-            <p className="text-3xl font-bold text-blue-600">{stats.total}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
-            <p className="text-gray-500 text-sm">Active</p>
-            <p className="text-3xl font-bold text-green-600">{stats.active}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500">
-            <p className="text-gray-500 text-sm">Suspended</p>
-            <p className="text-3xl font-bold text-yellow-600">{stats.suspended}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-indigo-500">
-            <p className="text-gray-500 text-sm">Fulfilled</p>
-            <p className="text-3xl font-bold text-indigo-600">{stats.fulfilled}</p>
-          </div>
-        </div>
-
         {/* Filter Tabs */}
         <div className="flex gap-2 mb-6 bg-white rounded-lg p-2 shadow-md">
-          {['ACTIVE', 'SUSPENDED', 'FULFILLED', 'CANCELLED'].map((status) => (
+          {['ACTIVE', 'SUSPENDED', 'FULFILLED'].map((status) => (
             <button
               key={status}
               onClick={() => setFilterStatus(status)}
@@ -129,6 +143,78 @@ export default function PINDashboard() {
               {status}
             </button>
           ))}
+        </div>
+
+        {/* Search and Filter Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-800">Search & Filter</h3>
+            {(searchKeyword || searchServiceType) && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Keyword Search */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Search by Keyword
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                  placeholder="Search in title or description..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                />
+                <svg
+                  className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Service Type Filter */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Filter by Service Type
+              </label>
+              <select
+                value={searchServiceType}
+                onChange={(e) => setSearchServiceType(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                <option value="">All Service Types</option>
+                {serviceTypes.map((type) => (
+                  <option key={type.id} value={type.service_name}>
+                    {type.service_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Results Count */}
+          {(searchKeyword || searchServiceType) && (
+            <div className="mt-4 text-sm text-gray-600">
+              Found <span className="font-bold text-blue-600">{filteredRequests.length}</span> result(s)
+            </div>
+          )}
         </div>
 
         {/* Requests List */}
@@ -159,51 +245,28 @@ export default function PINDashboard() {
           )}
 
           {!loading && requests.length > 0 && (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Title</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Category</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Priority</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Created</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {requests.map((req) => (
-                    <tr key={req.id} className="hover:bg-gray-50 transition">
-                      <td className="px-6 py-4">
-                        <Link href={`/pin/request/${req.id}`}>
-                          <span className="text-blue-600 hover:text-blue-800 font-semibold cursor-pointer">
-                            {req.title}
-                          </span>
-                        </Link>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700">{req.category}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityBadge(req.priority)}`}>
-                          {req.priority}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(req.status)}`}>
-                          {req.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600 text-sm">
-                        {new Date(req.created_at).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4">
-                        <Link href={`/pin/request/${req.id}`}>
-                          <button className="text-blue-600 hover:text-blue-800 font-semibold">View</button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="p-6">
+              <RequestCardGrid
+                emptyMessage="No requests match your search criteria"
+                emptyIcon="🔍"
+                emptyAction={
+                  <button 
+                    onClick={clearFilters}
+                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Clear Filters
+                  </button>
+                }
+              >
+                {filteredRequests.map((req) => (
+                  <RequestCard
+                    key={req.id}
+                    request={req}
+                    onClick={() => window.location.href = `/pin/request/${req.id}`}
+                    theme="blue"
+                  />
+                ))}
+              </RequestCardGrid>
             </div>
           )}
         </div>

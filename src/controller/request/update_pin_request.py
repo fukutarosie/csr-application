@@ -26,12 +26,10 @@ class UpdatePINRequest:
         {
             "title": "Updated title",
             "description": "Updated description",
-            "category": "Medical",
-            "service_type": "Accompaniment",
-            "priority": "URGENT",
-            "location_city": "Bangkok",
-            "location_detail": "New location",
-            "requested_by_date": "2025-11-05"
+            "service_type": "Grocery Shopping",
+            "region": "Hougang",
+            "requested_by_date": "2025-11-05",
+            "image_url": "https://..."
         }
         
         Returns:
@@ -78,35 +76,30 @@ class UpdatePINRequest:
                     return jsonify({'success': False, 'message': 'Description must be at least 10 characters'}), 400
                 updates['description'] = description
             
-            if 'category' in data:
-                category = data['category'].strip()
-                if category:
-                    updates['category'] = category
-            
             if 'service_type' in data:
                 service_type = data['service_type'].strip()
                 if service_type:
                     updates['service_type'] = service_type
             
-            if 'priority' in data:
-                priority = data['priority'].strip()
-                if priority:
-                    updates['priority'] = priority
+            if 'region' in data:
+                region = data['region'].strip()
+                if region:
+                    updates['region'] = region
             
-            if 'location_city' in data:
+            # For backwards compatibility, also accept location_city
+            if 'location_city' in data and 'region' not in data:
                 location_city = data['location_city'].strip()
                 if location_city:
-                    updates['location_city'] = location_city
-            
-            if 'location_detail' in data:
-                location_detail = data['location_detail'].strip()
-                if location_detail:
-                    updates['location_detail'] = location_detail
+                    updates['region'] = location_city
             
             if 'requested_by_date' in data:
                 requested_by_date = data['requested_by_date'].strip()
                 if requested_by_date:
                     updates['requested_by_date'] = requested_by_date
+            
+            if 'image_url' in data:
+                image_url = data['image_url'].strip() if data['image_url'] else None
+                updates['image_url'] = image_url
             
             if not updates:
                 return jsonify({'success': False, 'message': 'No valid fields to update'}), 400

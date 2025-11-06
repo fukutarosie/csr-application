@@ -10,6 +10,7 @@ update_user_profile_boundary = Blueprint('update_user_profile', __name__, url_pr
 
 @update_user_profile_boundary.route('/<int:profile_id>', methods=['PUT'])
 @require_role(Role.USER_ADMIN)
+
 def update_user_profile(profile_id):
     try:
         payload = request.get_json()

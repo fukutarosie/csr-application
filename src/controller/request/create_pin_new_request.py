@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from src.entity.request import Request
 from src.entity import User
 from src.controller.auth.auth_middleware import require_role
+from src.utils.image_upload import save_base64_image
 
 create_pin_new_request_blueprint = Blueprint(
     'create_pin_new_request',
@@ -21,15 +22,15 @@ class CreatePINNewRequest:
         
         Expected JSON body:
         {
-            "title": "Need grocery delivery",
+            "title": "Need grocery shopping help",
             "description": "Heavy groceries, need help carrying",
-            "category": "Food",
-            "service_type": "Delivery",
-            "priority": "HIGH",
-            "location_city": "Bangkok",
-            "location_detail": "44/123 Sukhumvit Rd",
-            "requested_by_date": "2025-10-31"
+            "service_type": "Grocery Shopping",
+            "region": "Hougang",
+            "requested_by_date": "2025-12-31",
+            "image": "data:image/jpeg;base64,/9j/4AAQ..." (required)
         }
+        
+        All fields are REQUIRED.
         
         Returns:
         {
@@ -79,38 +80,62 @@ class CreatePINNewRequest:
                     'message': 'Description is required (minimum 10 characters)'
                 }), 400
             
-            # Validate category
-            category = data.get('category', '').strip()
-            if not category:
+            # Validate service_type (now required)
+            service_type = data.get('service_type', '').strip()
+            if not service_type:
                 return jsonify({
                     'success': False,
-                    'message': 'Category is required'
+                    'message': 'Service type is required'
                 }), 400
             
-            # Get optional fields
-            service_type = data.get('service_type', '').strip() or None
-            priority = data.get('priority', 'MEDIUM').strip()
-            location_city = data.get('location_city', '').strip() or None
-            location_detail = data.get('location_detail', '').strip() or None
-            requested_by_date = data.get('requested_by_date', '').strip() or None
+            # Validate region (now required)
+            region = data.get('region', '').strip()
+            if not region:
+                return jsonify({
+                    'success': False,
+                    'message': 'Region is required'
+                }), 400
+            
+            # Validate requested_by_date (now required)
+            requested_by_date = data.get('requested_by_date', '').strip()
+            if not requested_by_date:
+                return jsonify({
+                    'success': False,
+                    'message': 'Requested by date is required'
+                }), 400
+            
+            # Handle image upload (now required)
+            image_url = None
+            image_data = data.get('image', '').strip()
+            if not image_data:
+                return jsonify({
+                    'success': False,
+                    'message': 'Image is required'
+                }), 400
+            
+            success, result, error_msg = save_base64_image(image_data, title)
+            if not success:
+                return jsonify({
+                    'success': False,
+                    'message': f'Image upload failed: {error_msg}'
+                }), 400
+            image_url = result
             
             # Call entity layer
             new_request = Request.create_request(
                 pin_user_id=pin_user_id,
                 title=title,
                 description=description,
-                category=category,
                 service_type=service_type,
-                priority=priority,
-                location_city=location_city,
-                location_detail=location_detail,
-                requested_by_date=requested_by_date
+                region=region,
+                requested_by_date=requested_by_date,
+                image_url=image_url
             )
             
             if not new_request:
                 return jsonify({
                     'success': False,
-                    'message': 'Failed to create request. Invalid category or service type.'
+                    'message': 'Failed to create request. Invalid service type.'
                 }), 400
             
             return jsonify({
