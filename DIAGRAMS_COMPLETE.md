@@ -3,17 +3,22 @@
 ## BCE Pattern Clarification
 
 **In our CSR Application:**
-- **BOUNDARY** = Controllers (e.g., `LoginController`, `UserAccountController`)
-  - Handle HTTP requests/responses
+- **BOUNDARY** = Frontend UI (e.g., `src/app/pin/page.js`, `src/app/csr/page.js`)
+  - User interface components (Next.js/React)
+  - Buttons, forms, displays that users interact with
+  - Located in `src/app/`
+
+- **CONTROL** = Backend Controllers (e.g., `login_controller.py`, `create_request_controller.py`)
+  - Business logic and request handling
+  - Process button clicks, form submissions, validations
+  - Coordinate workflow between frontend and database
   - Located in `src/controller/`
 
-- **CONTROL** = Entity Classes (e.g., `User`, `Role`, `Request`, `Shortlist`)
-  - Contain business logic
+- **ENTITY** = Database Access Classes (e.g., `User`, `Role`, `Request`, `Shortlist`)
+  - Code that communicates directly with the database
+  - Execute SQL queries and return data
   - Located in `src/entity/`
-
-- **ENTITY** = Database Tables (e.g., `users`, `roles`, `requests`, `shortlist`)
-  - Data persistence in Supabase PostgreSQL
-  - Physical data storage
+  - Connects to Supabase PostgreSQL
 
 ---
 
@@ -33,7 +38,37 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         BOUNDARY LAYER (Controllers)                         │
+│                       BOUNDARY LAYER (Frontend UI)                           │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐   │
+│  │ Login Page         │  │ Admin Dashboard    │  │ PIN Dashboard      │   │
+│  │ (page.js)          │  │ (page.js)          │  │ (page.js)          │   │
+│  ├────────────────────┤  ├────────────────────┤  ├────────────────────┤   │
+│  │ - Login form       │  │ - User management  │  │ - Create request   │   │
+│  │ - Input fields     │  │ - Role management  │  │ - View requests    │   │
+│  │ - Submit button    │  │ - User search      │  │ - Request history  │   │
+│  └────────────────────┘  │ - Statistics       │  └────────────────────┘   │
+│                          └────────────────────┘                            │
+│                                                                               │
+│  ┌────────────────────┐  ┌────────────────────┐                            │
+│  │ CSR Rep Dashboard  │  │ Shared Components  │                            │
+│  │ (page.js)          │  │                    │                            │
+│  ├────────────────────┤  ├────────────────────┤                            │
+│  │ - Browse requests  │  │ - Header           │                            │
+│  │ - Shortlist        │  │ - Alert            │                            │
+│  │ - Search filters   │  │ - RequestCard      │                            │
+│  │ - History          │  │ - RequestCardGrid  │                            │
+│  └────────────────────┘  └────────────────────┘                            │
+│                                                                               │
+│  Location: src/app/ (Next.js/React Components)                              │
+│                                                                               │
+└───────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        │ HTTP API Calls (axios)
+                                        ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                    CONTROL LAYER (Backend Controllers)                       │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                               │
 │  ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐   │
@@ -43,11 +78,16 @@
 │  │ +login()           │  │ +create()          │  │ +create()          │   │
 │  │ +logout()          │  │ +view_all()        │  │ +view_all()        │   │
 │  │ +verify()          │  │ +view_by_id()      │  │ +view_by_id()      │   │
-│  └────────────────────┘  │ +update()          │  │ +update()          │   │
-│                          │ +suspend()         │  │ +delete()          │   │
-│                          │ +activate()        │  │ +search()          │   │
-│                          │ +delete()          │  └────────────────────┘   │
-│                          │ +search()          │                            │
+│  │                    │  │ +update()          │  │ +update()          │   │
+│  │ Handles:           │  │ +suspend()         │  │ +delete()          │   │
+│  │ - Validation       │  │ +activate()        │  │ +search()          │   │
+│  │ - Authentication   │  │ +delete()          │  │                    │   │
+│  │ - Token generation │  │ +search()          │  │ Handles:           │   │
+│  └────────────────────┘  │                    │  │ - Role CRUD        │   │
+│                          │ Handles:           │  │ - Role search      │   │
+│                          │ - User CRUD        │  │ - CASCADE delete   │   │
+│                          │ - User search      │  └────────────────────┘   │
+│                          │ - Suspend/Activate │                            │
 │                          └────────────────────┘                            │
 │                                                                               │
 │  ┌────────────────────┐  ┌────────────────────┐                            │
@@ -58,28 +98,29 @@
 │  │ +view()            │  │ +get()             │                            │
 │  │ +update()          │  │ +remove()          │                            │
 │  │ +suspend()         │  │ +update_status()   │                            │
-│  │ +search()          │  └────────────────────┘                            │
-│  │ +get_analytics()   │                                                     │
+│  │ +search()          │  │                    │                            │
+│  │ +get_analytics()   │  │ Handles:           │                            │
+│  │                    │  │ - Add to shortlist │                            │
+│  │ Handles:           │  │ - View shortlist   │                            │
+│  │ - Request CRUD     │  │ - Remove items     │                            │
+│  │ - Search/Filter    │  │ - Status updates   │                            │
+│  │ - Analytics        │  └────────────────────┘                            │
 │  └────────────────────┘                                                     │
+│                                                                               │
+│  Location: src/controller/ (Flask route handlers)                           │
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────┘
                                         │
-                                        │ HTTP Request/Response
+                                        │ Calls Entity Methods
                                         ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        CONTROL LAYER (Entity Classes)                        │
+│                   ENTITY LAYER (Database Access Classes)                     │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                               │
 │  ┌────────────────────────────────────────────────────────────────┐        │
-│  │ User (Entity)                                                   │        │
+│  │ User (Entity Class)                                             │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
-│  │ - id: int                                                       │        │
-│  │ - username: str                                                 │        │
-│  │ - password_hash: str                                            │        │
-│  │ - full_name: str                                                │        │
-│  │ - email: str                                                    │        │
-│  │ - role_id: int                                                  │        │
-│  │ - is_active: bool                                               │        │
+│  │ - supabase: SupabaseClient                                      │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
 │  │ +authenticate_user(username, password, role): dict              │        │
 │  │ +create_user(data): dict                                        │        │
@@ -94,16 +135,14 @@
 │  │ +verify_token(token): dict                                     │        │
 │  │ +invalidate_session_token(token): bool                         │        │
 │  │ +log_user_activity(user_id, action, details): bool            │        │
+│  │                                                                  │        │
+│  │ Executes SQL: SELECT, INSERT, UPDATE FROM users table          │        │
 │  └────────────────────────────────────────────────────────────────┘        │
 │                                                                               │
 │  ┌────────────────────────────────────────────────────────────────┐        │
-│  │ Role (Entity)                                                   │        │
+│  │ Role (Entity Class)                                             │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
-│  │ - id: int                                                       │        │
-│  │ - role_name: str                                                │        │
-│  │ - role_code: str                                                │        │
-│  │ - description: str                                              │        │
-│  │ - dashboard_route: str                                          │        │
+│  │ - supabase: SupabaseClient                                      │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
 │  │ +get_all_roles(): list                                          │        │
 │  │ +get_role_by_id(role_id): dict                                 │        │
@@ -112,21 +151,14 @@
 │  │ +update_role(role_id, data): bool                              │        │
 │  │ +delete_role(role_id): bool (CASCADE DELETE)                   │        │
 │  │ +search_roles(search_term): list                               │        │
+│  │                                                                  │        │
+│  │ Executes SQL: SELECT, INSERT, UPDATE, DELETE FROM roles table  │        │
 │  └────────────────────────────────────────────────────────────────┘        │
 │                                                                               │
 │  ┌────────────────────────────────────────────────────────────────┐        │
-│  │ Request (Entity)                                                │        │
+│  │ Request (Entity Class)                                          │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
-│  │ - id: int                                                       │        │
-│  │ - pin_user_id: int                                              │        │
-│  │ - title: str                                                    │        │
-│  │ - description: str                                              │        │
-│  │ - category: str                                                 │        │
-│  │ - status: str                                                   │        │
-│  │ - budget_min: decimal                                           │        │
-│  │ - budget_max: decimal                                           │        │
-│  │ - timeline: date                                                │        │
-│  │ - created_at: timestamp                                         │        │
+│  │ - supabase: SupabaseClient                                      │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
 │  │ +create_request(data): dict                                     │        │
 │  │ +get_request_by_id(request_id): dict                           │        │
@@ -136,17 +168,14 @@
 │  │ +search_requests(criteria): list                               │        │
 │  │ +get_request_analytics(): dict                                 │        │
 │  │ +get_completed_matches(user_id): list                          │        │
+│  │                                                                  │        │
+│  │ Executes SQL: SELECT, INSERT, UPDATE FROM requests table       │        │
 │  └────────────────────────────────────────────────────────────────┘        │
 │                                                                               │
 │  ┌────────────────────────────────────────────────────────────────┐        │
-│  │ Shortlist (Entity)                                              │        │
+│  │ Shortlist (Entity Class)                                        │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
-│  │ - id: int                                                       │        │
-│  │ - csr_rep_id: int                                               │        │
-│  │ - request_id: int                                               │        │
-│  │ - status: str                                                   │        │
-│  │ - notes: str                                                    │        │
-│  │ - added_at: timestamp                                           │        │
+│  │ - supabase: SupabaseClient                                      │        │
 │  ├────────────────────────────────────────────────────────────────┤        │
 │  │ +add_to_shortlist(data): dict                                  │        │
 │  │ +get_shortlist_by_user(user_id): list                          │        │
@@ -154,40 +183,25 @@
 │  │ +update_shortlist_status(shortlist_id, status): bool           │        │
 │  │ +remove_from_shortlist(shortlist_id): bool                     │        │
 │  │ +check_if_shortlisted(user_id, request_id): bool               │        │
+│  │                                                                  │        │
+│  │ Executes SQL: SELECT, INSERT, UPDATE, DELETE FROM shortlist    │        │
 │  └────────────────────────────────────────────────────────────────┘        │
+│                                                                               │
+│  Location: src/entity/ (Python classes with database methods)               │
 │                                                                               │
 └───────────────────────────────────────────────────────────────────────────┘
                                         │
-                                        │ SQL Queries
+                                        │ SQL Queries via Supabase Client
                                         ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                    DATABASE TABLES (Data Persistence)                        │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                               │
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   ┌─────────────┐   │
-│  │   users     │   │    roles    │   │  requests   │   │  shortlist  │   │
-│  ├─────────────┤   ├─────────────┤   ├─────────────┤   ├─────────────┤   │
-│  │ id (PK)     │   │ id (PK)     │   │ id (PK)     │   │ id (PK)     │   │
-│  │ username    │   │ role_name   │   │ pin_user_id │   │ csr_rep_id  │   │
-│  │ password    │   │ role_code   │   │ title       │   │ request_id  │   │
-│  │ full_name   │   │ description │   │ description │   │ status      │   │
-│  │ email       │   │ dashboard   │   │ category    │   │ notes       │   │
-│  │ role_id(FK) │   │             │   │ status      │   │ added_at    │   │
-│  │ is_active   │   │             │   │ budget_min  │   │             │   │
-│  │ created_at  │   │             │   │ budget_max  │   │             │   │
-│  └─────────────┘   └─────────────┘   │ timeline    │   └─────────────┘   │
-│        │                  ▲           │ created_at  │           │          │
-│        └──────────────────┘           └─────────────┘           │          │
-│                                              ▲                   │          │
-│                                              │                   │          │
-│                                              └───────────────────┘          │
-│                                                                               │
-│  Supabase PostgreSQL Database                                               │
-│  - Row Level Security (RLS)                                                 │
-│  - CASCADE DELETE on role deletion                                          │
-│  - Indexes on foreign keys                                                  │
-│                                                                               │
-└───────────────────────────────────────────────────────────────────────────┘
+                              ┌──────────────────────┐
+                              │ Supabase PostgreSQL  │
+                              │ Database             │
+                              ├──────────────────────┤
+                              │ - users table        │
+                              │ - roles table        │
+                              │ - requests table     │
+                              │ - shortlist table    │
+                              └──────────────────────┘
 ```
 
 ---
@@ -951,9 +965,9 @@
 ### Key Patterns Across All Diagrams:
 
 1. **Three-Layer Architecture (BCE)**
-   - **Boundary**: Controllers handle HTTP requests/responses
-   - **Control**: Entity classes contain business logic
-   - **Entity**: Database tables store data
+   - **Boundary**: Frontend UI pages and components (Next.js/React)
+   - **Control**: Backend controllers with business logic (Flask)
+   - **Entity**: Database access classes that execute SQL (Python classes)
 
 2. **Authentication & Authorization**
    - JWT token-based authentication
@@ -961,13 +975,13 @@
    - Token verification on protected endpoints
 
 3. **Data Flow**
-   - Client → Controller (Boundary) → Entity (Control) → Database (Entity)
+   - User Interaction (Boundary) → API Call → Controller (Control) → Entity Class (Entity) → Database
    - Response flows back through the same layers
 
 4. **Validation Layers**
-   - HTTP format validation (Boundary layer)
-   - Business logic validation (Control layer)
-   - Database constraints (Entity layer)
+   - UI validation (Boundary layer - frontend)
+   - Business logic validation (Control layer - controllers)
+   - Database constraints (Entity layer - SQL constraints)
 
 5. **Error Handling**
    - Standardized error responses
@@ -985,24 +999,28 @@
 
 ## Files Referenced
 
-### Controllers (Boundary Layer)
+### Boundary Layer (Frontend UI)
+- `src/app/page.js` - Login page
+- `src/app/admin/page.js` - Admin dashboard
+- `src/app/pin/page.js` - PIN user dashboard
+- `src/app/csr/page.js` - CSR Rep dashboard
+- `src/app/components/Header.js`, `Alert.js`, `RequestCard.js`, etc.
+
+### Control Layer (Backend Controllers)
 - `src/controller/auth/login_controller.py`
 - `src/controller/userAccount/*.py`
 - `src/controller/userProfile/*.py`
 - `src/controller/request/*.py`
 - `src/controller/shortlist/*.py`
 
-### Entities (Control Layer)
-- `src/entity/user.py`
-- `src/entity/role.py`
-- `src/entity/request.py`
-- `src/entity/shortlist.py`
+### Entity Layer (Database Access Classes)
+- `src/entity/user.py` - User database operations
+- `src/entity/role.py` - Role database operations
+- `src/entity/request.py` - Request database operations
+- `src/entity/shortlist.py` - Shortlist database operations
 
-### Database Tables (Entity Layer)
-- `users`
-- `roles`
-- `requests`
-- `shortlist`
+### Database
+- Supabase PostgreSQL with tables: `users`, `roles`, `requests`, `shortlist`
 
 ---
 

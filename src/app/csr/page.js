@@ -158,7 +158,7 @@ export default function CSRDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <Header title="Browse PIN Requests" subtitle="Find volunteering opportunities" />
+      <Header title="CSR Rep Dashboard" subtitle="Find volunteering opportunities" />
 
       {error && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

@@ -12,13 +12,6 @@ export default function PINDashboard() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
-    activeRequests: 0,
-    suspendedRequests: 0,
-    fulfilledRequests: 0,
-    totalViews: 0,
-    totalShortlists: 0
-  });
   const [requests, setRequests] = useState([]);
   const [filteredRequests, setFilteredRequests] = useState([]);
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
@@ -177,59 +170,6 @@ export default function PINDashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Active Requests</p>
-                <p className="text-3xl font-bold text-green-600">{stats.activeRequests}</p>
-              </div>
-              <div className="text-4xl">✅</div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Suspended</p>
-                <p className="text-3xl font-bold text-yellow-600">{stats.suspendedRequests}</p>
-              </div>
-              <div className="text-4xl">⏸️</div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Fulfilled</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.fulfilledRequests}</p>
-              </div>
-              <div className="text-4xl">🎉</div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Total Views</p>
-                <p className="text-3xl font-bold text-purple-600">{stats.totalViews}</p>
-              </div>
-              <div className="text-4xl">👁️</div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600">Shortlisted</p>
-                <p className="text-3xl font-bold text-indigo-600">{stats.totalShortlists}</p>
-              </div>
-              <div className="text-4xl">⭐</div>
-            </div>
-          </div>
-        </div>
-
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <button
@@ -263,7 +203,7 @@ export default function PINDashboard() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Active ({stats.activeRequests})
+                Active
               </button>
               <button
                 onClick={() => setFilterStatus('SUSPENDED')}
@@ -273,7 +213,7 @@ export default function PINDashboard() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Suspended ({stats.suspendedRequests})
+                Suspended
               </button>
               <button
                 onClick={() => setFilterStatus('FULFILLED')}
@@ -283,7 +223,7 @@ export default function PINDashboard() {
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
-                Fulfilled ({stats.fulfilledRequests})
+                Fulfilled
               </button>
             </nav>
           </div>
