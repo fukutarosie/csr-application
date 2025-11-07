@@ -22,14 +22,14 @@ CORS(app, resources={r"/api/*": {"origins": cors_origins}})
 # Auth Controllers
 from src.controller.auth.login_controller import login_blueprint
 
-# User Account Controllers
-from src.controller.userAccount.create_user_account_controller import create_user_account_blueprint
-from src.controller.userAccount.view_user_account_controller import view_user_account_blueprint
-from src.controller.userAccount.update_user_account_controller import update_user_account_blueprint
-from src.controller.userAccount.suspend_user_account_controller import suspend_user_account_blueprint
-from src.controller.userAccount.search_user_account_controller import search_user_account_blueprint
+# User Account Controllers (2-layer BCE)
+from src.controller.userAccount.boundary.create_user_account_boundary import create_user_account_boundary
+from src.controller.userAccount.boundary.view_user_account_boundary import view_user_account_boundary
+from src.controller.userAccount.boundary.update_user_account_boundary import update_user_account_boundary
+from src.controller.userAccount.boundary.suspend_user_account_boundary import suspend_user_account_boundary
+from src.controller.userAccount.boundary.search_user_account_boundary import search_user_account_boundary
 
-# User Profile Controllers
+# User Profile Controllers (2-layer BCE)
 from src.controller.userProfile.boundary.create_user_profile_boundary import create_user_profile_boundary
 from src.controller.userProfile.boundary.view_user_profile_boundary import view_user_profile_boundary
 from src.controller.userProfile.boundary.update_user_profile_boundary import update_user_profile_boundary
@@ -66,14 +66,14 @@ from src.controller.role.delete_role_controller import delete_role_blueprint
 # Register Auth blueprints
 app.register_blueprint(login_blueprint)
 
-# Register User Account blueprints
-app.register_blueprint(create_user_account_blueprint)
-app.register_blueprint(view_user_account_blueprint)
-app.register_blueprint(update_user_account_blueprint)
-app.register_blueprint(suspend_user_account_blueprint)
-app.register_blueprint(search_user_account_blueprint)
+# Register User Account blueprints (2-layer BCE)
+app.register_blueprint(create_user_account_boundary)
+app.register_blueprint(view_user_account_boundary)
+app.register_blueprint(update_user_account_boundary)
+app.register_blueprint(suspend_user_account_boundary)
+app.register_blueprint(search_user_account_boundary)
 
-# Register User Profile blueprints
+# Register User Profile blueprints (2-layer BCE)
 app.register_blueprint(create_user_profile_boundary)
 app.register_blueprint(view_user_profile_boundary)
 app.register_blueprint(update_user_profile_boundary)

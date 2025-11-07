@@ -1,14 +1,10 @@
-"""Create User Account Controller - Handles user creation logic"""
+"""Create User Account Controller - Business logic for user creation"""
 
 from typing import Tuple
-from flask import Blueprint, request, jsonify
 from src.entity import User, Role
-from src.controller.auth.auth_middleware import require_role
 from src.utils.validators import Validators
 from src.utils.sanitizers import Sanitizers
 from src.utils.helpers import RequestHelpers, ResponseHelpers, DataHelpers
-
-create_user_account_blueprint = Blueprint('create_user_account', __name__, url_prefix='/api/userAccount')
 
 
 def validate_create_user_data(data: dict) -> Tuple[bool, str]:
@@ -83,54 +79,44 @@ def validate_create_user_data(data: dict) -> Tuple[bool, str]:
 
 class CreateUserAccountController:
     @staticmethod
-    @create_user_account_blueprint.route('', methods=['POST'])
-    @require_role(Role.USER_ADMIN)
-    def create():
+    def create(data):
         """
         Create a new user account with comprehensive validation
         
         Process:
-        1. Extract JSON request data
-        2. Validate HTTP format
-        3. Validate data format and uniqueness (BOUNDARY)
-        4. Sanitize input
-        5. Call CONTROL layer for business logic
-        6. Handle response and provide clear error messages
+        1. Validate data format and uniqueness
+        2. Sanitize input
+        3. Call Entity layer for database operations
+        4. Handle response and provide clear error messages
         
-        Validates:
-        - Required fields presence
-        - Data format (username, password, email, full_name, role_id)
-        - Username uniqueness
-        - Email uniqueness
-        - Role validity
+        Args:
+            data: User data from HTTP request
+            
+        Returns:
+            Tuple of (response_dict, status_code)
         """
         try:
-            # ===== BOUNDARY: Extract HTTP request data =====
-            data = RequestHelpers.get_json_data()
-            
-            # ===== BOUNDARY: Validate HTTP format =====
+            # ===== Validate HTTP format =====
             if not data:
-                response, status = ResponseHelpers.error_response(
+                return ResponseHelpers.error_response(
                     message='Request body is required',
                     error_code='EMPTY_BODY',
                     status_code=400
                 )
-                return jsonify(response), status
             
-            # ===== BOUNDARY: Validate data format and uniqueness =====
+            # ===== Validate data format and uniqueness =====
             is_valid, error_msg = validate_create_user_data(data)
             if not is_valid:
-                response, status = ResponseHelpers.error_response(
+                return ResponseHelpers.error_response(
                     message=error_msg,
                     error_code='VALIDATION_ERROR',
                     status_code=400
                 )
-                return jsonify(response), status
             
-            # ===== BOUNDARY: Sanitize input data =====
+            # ===== Sanitize input data =====
             sanitized = Sanitizers.sanitize_user_data(data)
             
-            # ===== CALL CONTROL LAYER =====
+            # ===== CALL Entity LAYER =====
             # User.create_user() performs final validation and inserts into database
             result = User.create_user(
                 username=sanitized['username'],
@@ -140,17 +126,11 @@ class CreateUserAccountController:
                 role_id=sanitized['role_id']
             )
 
-            # ===== BOUNDARY: Handle CONTROL layer structured response =====
+            # ===== Handle Entity layer structured response =====
             # Success
             if result and isinstance(result, dict) and 'data' in result:
                 created = result['data']
                 response_data = DataHelpers.format_user_response(created)
-
-                response, status = ResponseHelpers.success_response(
-                    data=response_data,
-                    message='User account created successfully',
-                    status_code=201
-                )
 
                 # Log the creation for audit trail (best-effort)
                 try:
@@ -162,52 +142,51 @@ class CreateUserAccountController:
                 except Exception:
                     pass
 
-                return jsonify(response), status
+                return ResponseHelpers.success_response(
+                    data=response_data,
+                    message='User account created successfully',
+                    status_code=201
+                )
 
             # Specific duplicate username
             if result and isinstance(result, dict) and result.get('error') == 'USERNAME_EXISTS':
-                response, status = ResponseHelpers.error_response(
+                return ResponseHelpers.error_response(
                     message=result.get('message', f"The username '{sanitized['username']}' is already taken."),
                     error_code='USERNAME_EXISTS',
                     status_code=409,
                     details={'field': 'username'}
                 )
-                return jsonify(response), status
 
             # Specific duplicate email
             if result and isinstance(result, dict) and result.get('error') == 'EMAIL_EXISTS':
-                response, status = ResponseHelpers.error_response(
+                return ResponseHelpers.error_response(
                     message=result.get('message', f"The email '{sanitized['email']}' is already registered."),
                     error_code='EMAIL_EXISTS',
                     status_code=409,
                     details={'field': 'email'}
                 )
-                return jsonify(response), status
 
             # DB failure or unexpected exception
             if result and isinstance(result, dict) and result.get('error') in ('DB_INSERT_FAILED', 'EXCEPTION'):
-                response, status = ResponseHelpers.error_response(
+                return ResponseHelpers.error_response(
                     message=result.get('message', 'An unexpected error occurred while creating account'),
                     error_code=result.get('error', 'CREATION_FAILED'),
                     status_code=500
                 )
-                return jsonify(response), status
 
             # Fallback - generic creation failed
-            response, status = ResponseHelpers.error_response(
+            return ResponseHelpers.error_response(
                 message='Failed to create user account. Please try again.',
                 error_code='CREATION_FAILED',
                 status_code=400
             )
-            return jsonify(response), status
 
         except Exception as e:
             import traceback
-            print(f"[ERROR] Create user endpoint error: {str(e)}")
+            print(f"[ERROR] Create user error: {str(e)}")
             print(f"[ERROR] Traceback: {traceback.format_exc()}")
-            response, status = ResponseHelpers.error_response(
+            return ResponseHelpers.error_response(
                 message='An unexpected error occurred while creating user account. Please try again.',
                 error_code='SERVER_ERROR',
                 status_code=500
             )
-            return jsonify(response), status

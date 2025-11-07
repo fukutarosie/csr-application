@@ -1,19 +1,15 @@
-"""Search User Account Controller - Handles user search logic"""
+"""Search User Account Controller - Business logic for user search"""
 
-from flask import Blueprint, request, jsonify
 from src.entity import User, Role
-from src.controller.auth.auth_middleware import require_role
 
-search_user_account_blueprint = Blueprint('search_user_account', __name__, url_prefix='/api/userAccount')
 
 class SearchUserAccountController:
     @staticmethod
-    @search_user_account_blueprint.route('/search', methods=['POST'])
-    @require_role(Role.USER_ADMIN)
-    def search():
+    def search(data):
         """Search user accounts by criteria"""
         try:
-            data = request.get_json()
+            if not data:
+                data = {}
             
             users = User.search_users(
                 username=data.get('username', ''),
@@ -21,13 +17,14 @@ class SearchUserAccountController:
                 full_name=data.get('full_name', '')
             )
 
-            return jsonify({
+            return {
                 'success': True,
                 'data': users,
                 'count': len(users) if users else 0
-            }), 200
+            }, 200
         except Exception as e:
-            return jsonify({
+            return {
                 'success': False,
                 'message': str(e)
-            }), 500
+            }, 500
+
