@@ -1,4 +1,4 @@
-"""UpdatePINRequest Controller - Handles PIN user request updates"""
+"""UpdatePINRequestController - Handles PIN user request updates"""
 
 from flask import Blueprint, request, jsonify
 from src.entity.request import Request
@@ -11,7 +11,7 @@ update_pin_request_blueprint = Blueprint(
     url_prefix='/api/requests'
 )
 
-class UpdatePINRequest:
+class UpdatePINRequestController:
     @staticmethod
     @update_pin_request_blueprint.route('/<int:request_id>', methods=['PUT'])
     @require_role('PIN')

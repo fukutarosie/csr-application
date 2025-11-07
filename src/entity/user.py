@@ -264,11 +264,25 @@ class User:
             payload = jwt.decode(token, SUPABASE_KEY, algorithms=['HS256'])
             user_id = payload['user_id']
             
-            # Get user from database
+            # Get user from database with role information
             supabase = get_supabase()
-            result = supabase.table('users').select("*").eq('id', user_id).execute()
+            result = supabase.table('users').select(
+                "*",
+                "roles(id, role_name, role_code, dashboard_route)"
+            ).eq('id', user_id).execute()
             
-            return result.data[0] if result.data else None
+            if result.data:
+                user_data = result.data[0]
+                # Flatten role data for easier access
+                if user_data.get('roles'):
+                    user_data['role'] = {
+                        'id': user_data['roles']['id'],
+                        'name': user_data['roles']['role_name'],
+                        'code': user_data['roles']['role_code'],
+                        'dashboard_route': user_data['roles'].get('dashboard_route', '/')
+                    }
+                return user_data
+            return None
             
         except jwt.ExpiredSignatureError:
             return None

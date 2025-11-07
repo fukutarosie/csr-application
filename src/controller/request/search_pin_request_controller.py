@@ -1,4 +1,4 @@
-"""SearchPINRequest Controller - Handles PIN user request search"""
+"""SearchPINRequestController - Handles PIN user request search"""
 
 from flask import Blueprint, request, jsonify
 from src.entity.request import Request
@@ -11,7 +11,7 @@ search_pin_request_blueprint = Blueprint(
     url_prefix='/api/requests'
 )
 
-class SearchPINRequest:
+class SearchPINRequestController:
     @staticmethod
     @search_pin_request_blueprint.route('/search', methods=['GET'])
     @require_role('PIN')

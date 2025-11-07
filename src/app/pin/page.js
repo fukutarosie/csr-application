@@ -19,6 +19,8 @@ export default function PINDashboard() {
   const [searchServiceType, setSearchServiceType] = useState('');
   const [serviceTypes, setServiceTypes] = useState([]);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [completingRequest, setCompletingRequest] = useState(null);
 
   const getToken = () => localStorage.getItem('token');
 
@@ -107,29 +109,43 @@ export default function PINDashboard() {
       );
 
       if (response.data.success) {
-        const allRequests = response.data.data;
-        setRequests(allRequests);
-        
-        // Calculate stats from all requests
-        const active = allRequests.filter(r => r.status === 'ACTIVE').length;
-        const suspended = allRequests.filter(r => r.status === 'SUSPENDED').length;
-        const fulfilled = allRequests.filter(r => r.status === 'FULFILLED').length;
-        const totalViews = allRequests.reduce((sum, r) => sum + (r.view_count || 0), 0);
-        const totalShortlists = allRequests.reduce((sum, r) => sum + (r.shortlist_count || 0), 0);
-
-        setStats({
-          activeRequests: active,
-          suspendedRequests: suspended,
-          fulfilledRequests: fulfilled,
-          totalViews,
-          totalShortlists
-        });
+        setRequests(response.data.data);
       } else {
         setError(response.data.message);
       }
     } catch (err) {
       console.error('Failed to fetch requests:', err);
       setError('Failed to load requests');
+    }
+  };
+
+  const handleMarkAsCompleted = async (requestId) => {
+    if (!confirm('Mark this request as completed? This action cannot be undone.')) {
+      return;
+    }
+
+    setCompletingRequest(requestId);
+    try {
+      const response = await axios.put(
+        `http://localhost:5000/api/requests/${requestId}`,
+        { status: 'FULFILLED' },
+        { headers: { Authorization: `Bearer ${getToken()}` } }
+      );
+
+      if (response.data.success) {
+        setSuccess('Request marked as completed!');
+        fetchRequests(); // Refresh the list
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(response.data.message || 'Failed to mark request as completed');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      console.error('Error marking request as completed:', err);
+      setError(err.response?.data?.message || 'Failed to mark request as completed');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setCompletingRequest(null);
     }
   };
 
@@ -165,6 +181,18 @@ export default function PINDashboard() {
       {error && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <Alert type="error" message={error} onClose={() => setError('')} />
+        </div>
+      )}
+
+      {error && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Alert type="error" message={error} onClose={() => setError('')} />
+        </div>
+      )}
+
+      {success && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Alert type="success" message={success} onClose={() => setSuccess('')} />
         </div>
       )}
 
@@ -317,6 +345,35 @@ export default function PINDashboard() {
                         <span className="mr-1">⭐</span>
                         <span>{request.shortlist_count || 0} saved</span>
                       </div>
+                    </div>
+                  }
+                  actionButton={
+                    <div className="pt-4 border-t space-y-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(`/pin/request/${request.id}`);
+                        }}
+                        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center justify-center gap-2"
+                      >
+                        <span>👁️</span>
+                        <span>View Details</span>
+                      </button>
+                      {request.status === 'ACTIVE' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMarkAsCompleted(request.id);
+                          }}
+                          disabled={completingRequest === request.id}
+                          className={`w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 ${
+                            completingRequest === request.id ? 'opacity-50 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          <span>✓</span>
+                          <span>{completingRequest === request.id ? 'Processing...' : 'Mark as Completed'}</span>
+                        </button>
+                      )}
                     </div>
                   }
                 />

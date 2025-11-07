@@ -16,7 +16,8 @@ export default function RequestCard({
   onClick, 
   theme = 'blue',
   extraInfo = null,
-  actionButton = null 
+  actionButton = null,
+  analytics = null  // 🆕 US-27 & US-28: Analytics data
 }) {
   const themeColors = {
     blue: {
@@ -141,6 +142,33 @@ export default function RequestCard({
           {/* Extra Info (custom content passed from parent) */}
           {extraInfo}
         </div>
+
+        {/* 🆕 US-27 & US-28: Analytics Section */}
+        {analytics && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex gap-6 justify-center">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">👁️</span>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Views</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    {analytics.view_count || 0}
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⭐</span>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Shortlisted</p>
+                  <p className="text-lg font-bold text-purple-600">
+                    {analytics.shortlist_count || 0}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer Button or Custom Action */}
         <div className="pt-3 border-t border-gray-200">

@@ -138,21 +138,15 @@ export default function NewRequest() {
       );
 
       if (response.data.success) {
-        setSuccess(true);
-        setFormData({
-          title: '',
-          description: '',
-          service_type: '',
-          region: '',
-          requested_by_date: '',
-          image: '',
-        });
-        setImagePreview(null);
-
-        // Redirect to dashboard after success
-        setTimeout(() => {
+        // Get the newly created request ID
+        const newRequestId = response.data.data?.id;
+        
+        // Redirect immediately to dashboard (success message will show there)
+        if (newRequestId) {
+          router.push(`/pin/dashboard?new=${newRequestId}`);
+        } else {
           router.push('/pin/dashboard');
-        }, 1500);
+        }
       } else {
         setError(response.data.message);
       }

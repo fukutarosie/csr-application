@@ -47,25 +47,36 @@ class Shortlist:
         supabase = get_supabase()
         
         try:
+            print(f"[DEBUG] add_to_shortlist - CSR User ID: {csr_user_id}, Request ID: {request_id}")
+            
             # Validate CSR user exists and has CSR role
             user = supabase.table('users').select('id, role_id').eq('id', csr_user_id).execute()
             if not user.data:
+                print(f"[DEBUG] User {csr_user_id} not found")
                 return None  # User not found
             
+            print(f"[DEBUG] User role_id: {user.data[0]['role_id']}")
+            
             if user.data[0]['role_id'] != 3:  # CSR role_id = 3
+                print(f"[DEBUG] User {csr_user_id} is not CSR role (role_id={user.data[0]['role_id']})")
                 return None  # User is not CSR role
             
             # Validate request exists and is ACTIVE
             request = supabase.table('requests').select('id, status').eq('id', request_id).execute()
             if not request.data:
+                print(f"[DEBUG] Request {request_id} not found")
                 return None  # Request not found
             
+            print(f"[DEBUG] Request status: {request.data[0]['status']}")
+            
             if request.data[0]['status'] != 'ACTIVE':
+                print(f"[DEBUG] Request {request_id} is not ACTIVE (status={request.data[0]['status']})")
                 return None  # Can only shortlist ACTIVE requests
             
             # Check if already shortlisted (UNIQUE constraint will prevent duplicate)
             existing = supabase.table('shortlist').select('id').eq('csr_user_id', csr_user_id).eq('request_id', request_id).execute()
             if existing.data:
+                print(f"[DEBUG] Request {request_id} already shortlisted by CSR {csr_user_id}")
                 return None  # Already shortlisted
             
             # Prepare data
@@ -78,8 +89,26 @@ class Shortlist:
                 'updated_at': datetime.utcnow().isoformat()
             }
             
+            print(f"[DEBUG] Inserting shortlist entry: {shortlist_data}")
+            
             # Insert
             result = supabase.table('shortlist').insert(shortlist_data).execute()
+            print(f"[DEBUG] Insert result: {result.data}")
+            
+            # 🆕 INCREMENT shortlist_count in requests table (US-28)
+            if result.data:
+                try:
+                    req = supabase.table('requests').select('shortlist_count').eq('id', request_id).execute()
+                    current_count = req.data[0].get('shortlist_count', 0) if req.data else 0
+                    
+                    supabase.table('requests').update({
+                        'shortlist_count': current_count + 1
+                    }).eq('id', request_id).execute()
+                    
+                    print(f"[DEBUG] Incremented shortlist_count for request {request_id} to {current_count + 1}")
+                except Exception as count_err:
+                    print(f"[WARNING] Failed to increment shortlist_count (non-critical): {str(count_err)}")
+            
             return result.data[0] if result.data else None
             
         except Exception as e:
@@ -88,6 +117,8 @@ class Shortlist:
                 print(f"Request already shortlisted by this CSR")
             else:
                 print(f"Error adding to shortlist: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
     @staticmethod
@@ -108,16 +139,33 @@ class Shortlist:
         supabase = get_supabase()
         
         try:
-            # Verify ownership
-            existing = supabase.table('shortlist').select('csr_user_id').eq('id', shortlist_id).execute()
+            # Verify ownership and get request_id
+            existing = supabase.table('shortlist').select('csr_user_id, request_id').eq('id', shortlist_id).execute()
             if not existing.data:
                 return False  # Not found
             
             if existing.data[0]['csr_user_id'] != csr_user_id:
                 return False  # Not the owner
             
+            # Store request_id for decrementing counter
+            request_id = existing.data[0]['request_id']
+            
             # Delete
             supabase.table('shortlist').delete().eq('id', shortlist_id).execute()
+            
+            # 🆕 DECREMENT shortlist_count in requests table (US-28)
+            try:
+                req = supabase.table('requests').select('shortlist_count').eq('id', request_id).execute()
+                current_count = req.data[0].get('shortlist_count', 0) if req.data else 0
+                
+                supabase.table('requests').update({
+                    'shortlist_count': max(0, current_count - 1)  # Prevent negative count
+                }).eq('id', request_id).execute()
+                
+                print(f"[DEBUG] Decremented shortlist_count for request {request_id} to {max(0, current_count - 1)}")
+            except Exception as count_err:
+                print(f"[WARNING] Failed to decrement shortlist_count (non-critical): {str(count_err)}")
+            
             return True
             
         except Exception as e:

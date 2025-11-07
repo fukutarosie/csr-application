@@ -5,10 +5,25 @@ from src.controller.auth.auth_middleware import require_role
 role_blueprint = Blueprint('roles', __name__, url_prefix='/api/roles')
 
 class RoleController:
+    @role_blueprint.route('/public', methods=['GET'])
+    def get_roles_public():
+        """Get all roles - Public endpoint for login page (no authentication required)"""
+        try:
+            roles = Role.get_all_roles()
+            return jsonify({
+                'success': True,
+                'data': roles
+            }), 200
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 500
+
     @role_blueprint.route('', methods=['GET'])
     @require_role(Role.USER_ADMIN)
     def get_all_roles():
-        """Get all roles"""
+        """Get all roles - Protected endpoint for admins"""
         try:
             roles = Role.get_all_roles()
             return jsonify({

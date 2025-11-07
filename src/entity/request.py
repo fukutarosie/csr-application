@@ -156,6 +156,35 @@ class Request:
             return []
     
     @staticmethod
+    def get_all_requests(status: str = None) -> List[Dict]:
+        """
+        Get all requests in the system (for CSR Rep and Platform Manager)
+        
+        Args:
+            status: Optional filter by status (ACTIVE, SUSPENDED, etc.)
+            
+        Returns:
+            List of requests
+        """
+        supabase = get_supabase()
+        
+        try:
+            query = supabase.table('requests').select(
+                "*",
+                "users(id, username, full_name)"
+            )
+            
+            if status:
+                query = query.eq('status', status)
+            
+            result = query.order('created_at', desc=True).execute()
+            return result.data if result.data else []
+            
+        except Exception as e:
+            print(f"Error getting all requests: {str(e)}")
+            return []
+    
+    @staticmethod
     def update_request(
         request_id: int,
         pin_user_id: int,
@@ -220,35 +249,46 @@ class Request:
         supabase = get_supabase()
         
         try:
-            # Verify ownership
+            # Verify ownership and current status
             current = supabase.table('requests').select('pin_user_id, status').eq('id', request_id).execute()
             if not current.data:
+                print(f"Request {request_id} not found")
                 return None
             
             if current.data[0]['pin_user_id'] != pin_user_id:
+                print(f"Request {request_id} not owned by user {pin_user_id}")
                 return None  # Not the owner
+            
+            if current.data[0]['status'] != Request.STATUS_ACTIVE:
+                print(f"Request {request_id} is not ACTIVE (status: {current.data[0]['status']})")
+                return None  # Can only suspend ACTIVE requests
             
             # Update status to SUSPENDED
             result = supabase.table('requests').update({
                 'status': Request.STATUS_SUSPENDED,
-                'suspended_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }).eq('id', request_id).execute()
             
-            # Record in audit trail
+            # Record in audit trail if available
             if result.data:
-                Request._record_status_change(
-                    request_id=request_id,
-                    old_status=current.data[0]['status'],
-                    new_status=Request.STATUS_SUSPENDED,
-                    changed_by=pin_user_id,
-                    reason=reason
-                )
+                try:
+                    Request._record_status_change(
+                        request_id=request_id,
+                        old_status=current.data[0]['status'],
+                        new_status=Request.STATUS_SUSPENDED,
+                        changed_by=pin_user_id,
+                        reason=reason
+                    )
+                except Exception as audit_error:
+                    print(f"Audit trail failed (non-critical): {str(audit_error)}")
             
             return result.data[0] if result.data else None
             
         except Exception as e:
             print(f"Error suspending request: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
             return None
     
     @staticmethod

@@ -37,13 +37,14 @@ from src.controller.userProfile.boundary.suspend_user_profile_boundary import su
 from src.controller.userProfile.boundary.search_user_profile_boundary import search_user_profile_boundary
 
 # PIN Request Controllers
-from src.controller.request.create_pin_new_request import create_pin_new_request_blueprint
-from src.controller.request.view_pin_request import view_pin_request_blueprint
-from src.controller.request.update_pin_request import update_pin_request_blueprint
-from src.controller.request.suspend_pin_request import suspend_pin_request_blueprint
-from src.controller.request.search_pin_request import search_pin_request_blueprint
+from src.controller.request.create_new_pin_request_controller import create_pin_new_request_blueprint
+from src.controller.request.view_pin_request_controller import view_pin_request_blueprint
+from src.controller.request.update_pin_request_controller import update_pin_request_blueprint
+from src.controller.request.suspend_pin_request_controller import suspend_pin_request_blueprint
+from src.controller.request.search_pin_request_controller import search_pin_request_blueprint
 from src.controller.request.get_pin_requests_controller import get_pin_requests_blueprint
 from src.controller.request.get_request_analytics_controller import get_request_analytics_blueprint
+from src.controller.request.increment_view_count_controller import increment_view_count_blueprint
 from src.controller.request.get_completed_matches_controller import get_completed_matches_blueprint
 from src.controller.request.get_request_lookups_controller import get_request_lookups_blueprint
 
@@ -54,8 +55,15 @@ from src.controller.shortlist.update_shortlist_status_controller import update_s
 from src.controller.shortlist.remove_from_shortlist_controller import remove_from_shortlist_blueprint
 from src.controller.shortlist.get_shortlist_stats_controller import get_shortlist_stats_blueprint
 
-# Consolidated Role and User Controllers
-from src.controller.role.role_controller import role_blueprint
+# Role Controllers (Specific Controllers following SRP)
+from src.controller.role.get_public_roles_controller import get_public_roles_blueprint
+from src.controller.role.get_all_roles_controller import get_all_roles_blueprint
+from src.controller.role.get_role_controller import get_role_blueprint
+from src.controller.role.create_role_controller import create_role_blueprint
+from src.controller.role.update_role_controller import update_role_blueprint
+from src.controller.role.delete_role_controller import delete_role_blueprint
+
+# Consolidated User Controller
 from src.controller.user.user_controller import user_blueprint
 
 # Register Auth blueprints
@@ -83,6 +91,7 @@ app.register_blueprint(suspend_pin_request_blueprint)
 app.register_blueprint(search_pin_request_blueprint)
 app.register_blueprint(get_pin_requests_blueprint)
 app.register_blueprint(get_request_analytics_blueprint)
+app.register_blueprint(increment_view_count_blueprint)  # US-27: Track CSR views
 app.register_blueprint(get_completed_matches_blueprint)
 app.register_blueprint(get_request_lookups_blueprint)
 
@@ -93,8 +102,15 @@ app.register_blueprint(update_shortlist_status_blueprint)
 app.register_blueprint(remove_from_shortlist_blueprint)
 app.register_blueprint(get_shortlist_stats_blueprint)
 
-# Register consolidated Role and User blueprints
-app.register_blueprint(role_blueprint)
+# Register Role blueprints (Specific Controllers)
+app.register_blueprint(get_public_roles_blueprint)
+app.register_blueprint(get_all_roles_blueprint)
+app.register_blueprint(get_role_blueprint)
+app.register_blueprint(create_role_blueprint)
+app.register_blueprint(update_role_blueprint)
+app.register_blueprint(delete_role_blueprint)
+
+# Register User blueprint
 app.register_blueprint(user_blueprint)
 
 # Health check endpoint

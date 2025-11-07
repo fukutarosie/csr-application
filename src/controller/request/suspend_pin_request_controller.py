@@ -1,4 +1,4 @@
-"""SuspendPINRequest Controller - Handles PIN user request suspension"""
+"""SuspendPINRequestController - Handles PIN user request suspension"""
 
 from flask import Blueprint, request, jsonify
 from src.entity.request import Request
@@ -11,7 +11,7 @@ suspend_pin_request_blueprint = Blueprint(
     url_prefix='/api/requests'
 )
 
-class SuspendPINRequest:
+class SuspendPINRequestController:
     @staticmethod
     @suspend_pin_request_blueprint.route('/<int:request_id>/suspend', methods=['PUT'])
     @require_role('PIN')

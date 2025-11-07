@@ -1,4 +1,4 @@
-"""CreatePINNewRequest Controller - Handles PIN user request creation"""
+"""CreateNewPINRequestController - Handles PIN user request creation"""
 
 from flask import Blueprint, request, jsonify
 from src.entity.request import Request
@@ -12,7 +12,7 @@ create_pin_new_request_blueprint = Blueprint(
     url_prefix='/api/requests'
 )
 
-class CreatePINNewRequest:
+class CreateNewPINRequestController:
     @staticmethod
     @create_pin_new_request_blueprint.route('', methods=['POST'])
     @require_role('PIN')

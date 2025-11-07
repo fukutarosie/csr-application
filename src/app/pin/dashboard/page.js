@@ -1,30 +1,64 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import Link from 'next/link';
 import Header from '../../components/Header';
 import RequestCard from '../../components/RequestCard';
 import RequestCardGrid from '../../components/RequestCardGrid';
+import Alert from '../../components/Alert';
 
 export default function PINDashboard() {
+  const searchParams = useSearchParams();
+  const newRequestId = searchParams.get('new'); // Get the new request ID from URL
   const [requests, setRequests] = useState([]);
   const [filteredRequests, setFilteredRequests] = useState([]);
+  const [requestAnalytics, setRequestAnalytics] = useState({}); // 🆕 US-27 & US-28: Store analytics
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('ACTIVE');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchServiceType, setSearchServiceType] = useState('');
   const [serviceTypes, setServiceTypes] = useState([]);
+  const [highlightedRequestId, setHighlightedRequestId] = useState(null);
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const highlightRef = useRef(null);
 
   useEffect(() => {
     fetchRequests();
     fetchServiceTypes();
-  }, [filterStatus]);
+    
+    // Set highlighted request ID if provided
+    if (newRequestId) {
+      setHighlightedRequestId(parseInt(newRequestId));
+      setShowSuccessAlert(true);
+      
+      // Hide success alert after 5 seconds
+      setTimeout(() => {
+        setShowSuccessAlert(false);
+      }, 5000);
+    }
+  }, [filterStatus, newRequestId]);
 
   useEffect(() => {
     applyFilters();
-  }, [requests, searchKeyword, searchServiceType]);
+    
+    // Scroll to highlighted request after filtering
+    if (highlightedRequestId && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center' 
+        });
+        
+        // Remove highlight after 3 seconds
+        setTimeout(() => {
+          setHighlightedRequestId(null);
+        }, 3000);
+      }, 500);
+    }
+  }, [requests, searchKeyword, searchServiceType, highlightedRequestId]);
 
   const fetchServiceTypes = async () => {
     try {
@@ -42,6 +76,36 @@ export default function PINDashboard() {
     } catch (err) {
       console.error('Error fetching service types:', err);
     }
+  };
+
+  // 🆕 US-27 & US-28: Fetch analytics for all PIN requests
+  const fetchAnalytics = async (requestsList) => {
+    if (!requestsList || requestsList.length === 0) return;
+    
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    const analyticsData = {};
+    
+    // Fetch analytics for each request
+    for (const req of requestsList) {
+      try {
+        const response = await axios.get(
+          `http://localhost:5000/api/requests/${req.id}/analytics`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        
+        if (response.data.success) {
+          analyticsData[req.id] = response.data.data;
+        }
+      } catch (err) {
+        console.error(`Failed to fetch analytics for request ${req.id}:`, err);
+        // Set default values if fetch fails
+        analyticsData[req.id] = { view_count: 0, shortlist_count: 0 };
+      }
+    }
+    
+    setRequestAnalytics(analyticsData);
   };
 
   const applyFilters = () => {
@@ -87,7 +151,11 @@ export default function PINDashboard() {
       );
 
       if (response.data.success) {
-        setRequests(response.data.data || []);
+        const requestsData = response.data.data || [];
+        setRequests(requestsData);
+        
+        // 🆕 US-27 & US-28: Fetch analytics after loading requests
+        fetchAnalytics(requestsData);
       } else {
         setError(response.data.message);
       }
@@ -119,6 +187,14 @@ export default function PINDashboard() {
       <Header title="PIN Dashboard - Manage Requests" subtitle="Manage your service requests" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Success Alert for New Request */}
+        {showSuccessAlert && (
+          <Alert 
+            type="success" 
+            message="✅ Request created successfully!" 
+          />
+        )}
+
         {/* Action Button */}
         <div className="flex justify-end mb-6">
           <Link href="/pin/request/new">
@@ -259,12 +335,22 @@ export default function PINDashboard() {
                 }
               >
                 {filteredRequests.map((req) => (
-                  <RequestCard
+                  <div 
                     key={req.id}
-                    request={req}
-                    onClick={() => window.location.href = `/pin/request/${req.id}`}
-                    theme="blue"
-                  />
+                    ref={req.id === highlightedRequestId ? highlightRef : null}
+                    className={`transition-all duration-500 ${
+                      req.id === highlightedRequestId 
+                        ? 'ring-4 ring-green-400 ring-offset-2 rounded-lg shadow-2xl animate-pulse' 
+                        : ''
+                    }`}
+                  >
+                    <RequestCard
+                      request={req}
+                      analytics={requestAnalytics[req.id]}
+                      onClick={() => window.location.href = `/pin/request/${req.id}`}
+                      theme="blue"
+                    />
+                  </div>
                 ))}
               </RequestCardGrid>
             </div>

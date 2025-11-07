@@ -130,7 +130,6 @@ class LoginController:
             # - JWT token generation
             result = User.authenticate_user(username, password, role_name)
 
-            # ===== Handle CONTROL layer response =====
             if not result:
                 response, status = ResponseHelpers.error_response(
                     message='Invalid credentials or user role mismatch',
@@ -139,7 +138,6 @@ class LoginController:
                 )
                 return jsonify(response), status
 
-            # ===== Format HTTP response =====
             response_data = {
                 'token': result['token'],
                 'user': {
@@ -155,7 +153,6 @@ class LoginController:
                 }
             }
 
-            # Log successful login
             User.log_user_activity(result['id'], 'login', f'Logged in as {role_name}')
 
             response, status = ResponseHelpers.success_response(
@@ -217,11 +214,6 @@ class LoginController:
 
     @login_blueprint.route('/verify', methods=['GET'])
     def verify_session():
-        """
-        Token verification endpoint with improved error handling
-
-        Validates token and returns user data with role information
-        """
         try:
             # ===== Extract Authorization header =====
             auth_header = request.headers.get('Authorization')

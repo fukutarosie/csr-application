@@ -73,7 +73,9 @@ export default function CSRDashboard() {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/requests?status=ACTIVE');
+      const response = await axios.get('http://localhost:5000/api/requests?status=ACTIVE', {
+        headers: { 'Authorization': `Bearer ${getToken()}` }
+      });
       if (response.data.success) {
         setRequests(response.data.data);
       } else {
