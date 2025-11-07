@@ -63,9 +63,6 @@ from src.controller.role.create_role_controller import create_role_blueprint
 from src.controller.role.update_role_controller import update_role_blueprint
 from src.controller.role.delete_role_controller import delete_role_blueprint
 
-# Consolidated User Controller
-from src.controller.user.user_controller import user_blueprint
-
 # Register Auth blueprints
 app.register_blueprint(login_blueprint)
 
@@ -109,9 +106,6 @@ app.register_blueprint(get_role_blueprint)
 app.register_blueprint(create_role_blueprint)
 app.register_blueprint(update_role_blueprint)
 app.register_blueprint(delete_role_blueprint)
-
-# Register User blueprint
-app.register_blueprint(user_blueprint)
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])

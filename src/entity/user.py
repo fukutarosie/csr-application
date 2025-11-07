@@ -248,6 +248,26 @@ class User:
         return User.update_user(user_id, {"is_active": True})
 
     @staticmethod
+    def delete_user(user_id: int) -> bool:
+        """
+        Permanently delete a user account
+        
+        Args:
+            user_id: ID of the user to delete
+            
+        Returns:
+            True if deletion successful, False otherwise
+        """
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('users').delete().eq('id', user_id).execute()
+            return result.data is not None and len(result.data) > 0
+        except Exception as e:
+            print(f"Error deleting user: {str(e)}")
+            return False
+
+    @staticmethod
     def create_session_token(user_id: int) -> str:
         """Create a new session token for a user"""
         payload = {

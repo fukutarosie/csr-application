@@ -64,8 +64,6 @@ class SuspendUserAccountController:
     def delete(user_id):
         """Delete a user account"""
         try:
-            from src.config.supabase import supabase
-            
             # Check if user exists
             user = User.get_user_by_id(user_id)
             if not user:
@@ -74,13 +72,20 @@ class SuspendUserAccountController:
                     'message': 'User account not found'
                 }), 404
             
-            # Delete from database
-            supabase.table('users').delete().eq('id', user_id).execute()
+            # Call Entity layer to handle database deletion
+            success = User.delete_user(user_id)
             
-            return jsonify({
-                'success': True,
-                'message': 'User account deleted successfully'
-            }), 200
+            if success:
+                return jsonify({
+                    'success': True,
+                    'message': 'User account deleted successfully'
+                }), 200
+            else:
+                return jsonify({
+                    'success': False,
+                    'message': 'Deletion failed'
+                }), 500
+                
         except Exception as e:
             return jsonify({
                 'success': False,
