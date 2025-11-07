@@ -1,23 +1,11 @@
 """
-Remove from Shortlist Controller - CSR removes request from shortlist
-Handles removing shortlisted requests
-
-BOUNDARY Layer (BCE Architecture)
+Remove from Shortlist Controller - CSR removes request from shortlist (Control Layer)
 """
 
-from flask import Blueprint, request, jsonify
 from src.entity.shortlist import Shortlist
 from src.entity.request import Request
 from src.entity import User
-from src.controller.auth.auth_middleware import require_role
-from src.utils.helpers import TokenHelpers, ResponseHelpers
-
-remove_from_shortlist_blueprint = Blueprint(
-    'remove_from_shortlist',
-    __name__,
-    url_prefix='/api/shortlist'
-)
-
+from src.utils.helpers import ResponseHelpers
 
 class RemoveFromShortlistController:
     """
@@ -25,28 +13,17 @@ class RemoveFromShortlistController:
     """
     
     @staticmethod
-    @remove_from_shortlist_blueprint.route('/<int:shortlist_id>', methods=['DELETE'])
-    @require_role('CSR Rep')
-    def remove_shortlist(shortlist_id):
+    def remove_shortlist(auth_token, shortlist_id):
         """
         Remove shortlist entry
         
-        Returns:
-            {
-                "success": true,
-                "message": "Removed from shortlist successfully"
-            }
+        Returns: (response_dict, status_code)
         """
         try:
-            # Extract and validate JWT token
-            token = TokenHelpers.extract_token_from_header(request)
-            if not token:
-                return ResponseHelpers.error_response('Missing authorization token', 401)
-            
             # Verify token and get user
-            user_data = User.verify_session_token(token)
+            user_data = User.verify_session_token(auth_token)
             if not user_data:
-                return ResponseHelpers.error_response('Invalid or expired token', 401)
+                return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
             csr_user_id = user_data['id']
             
@@ -65,20 +42,20 @@ class RemoveFromShortlistController:
             )
             
             if not success:
-                return ResponseHelpers.error_response(
+                return (ResponseHelpers.error_response(
                     'Failed to remove from shortlist. Entry not found or unauthorized.',
                     400
-                )
+                ), 400)
             
             # Decrement shortlist count on the request (analytics)
             if request_id:
                 Request.decrement_shortlist_count(request_id)
             
             # Return response
-            return ResponseHelpers.success_response(
+            return (ResponseHelpers.success_response(
                 message='Removed from shortlist successfully'
-            ), 200
+            ), 200)
             
         except Exception as e:
             print(f"[ERROR] Remove from shortlist failed: {str(e)}")
-            return ResponseHelpers.error_response('Internal server error'), 500
+            return (ResponseHelpers.error_response('Internal server error'), 500)

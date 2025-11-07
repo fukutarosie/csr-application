@@ -1,22 +1,10 @@
 """
-Get Shortlist Controller - CSR views their shortlist
-Handles retrieving CSR's shortlisted requests
-
-BOUNDARY Layer (BCE Architecture)
+Get Shortlist Controller - CSR views their shortlist (Control Layer)
 """
 
-from flask import Blueprint, request, jsonify
 from src.entity.shortlist import Shortlist
 from src.entity import User
-from src.controller.auth.auth_middleware import require_role
-from src.utils.helpers import TokenHelpers, ResponseHelpers, PaginationHelpers
-
-get_shortlist_blueprint = Blueprint(
-    'get_shortlist',
-    __name__,
-    url_prefix='/api/shortlist'
-)
-
+from src.utils.helpers import ResponseHelpers
 
 class GetShortlistController:
     """
@@ -24,43 +12,27 @@ class GetShortlistController:
     """
     
     @staticmethod
-    @get_shortlist_blueprint.route('', methods=['GET'])
-    @require_role('CSR Rep')
-    def get_shortlist():
+    def get_shortlist(auth_token, status_filter, page_str, limit_str):
         """
         Get CSR's shortlist with filters
         
-        Query Parameters:
-            - status: Filter by status (SHORTLISTED, IN_PROGRESS, COMPLETED, DECLINED)
-            - page: Page number (default: 1)
-            - limit: Results per page (default: 10)
-        
-        Returns:
-            {
-                "success": true,
-                "data": [shortlist_entries],
-                "pagination": {...},
-                "message": "Shortlist retrieved successfully"
-            }
+        Returns: (response_dict, status_code)
         """
         try:
-            # Extract and validate JWT token
-            token = TokenHelpers.extract_token_from_header(request)
-            if not token:
-                return ResponseHelpers.error_response('Missing authorization token', 401)
-            
             # Verify token and get user
-            user_data = User.verify_session_token(token)
+            user_data = User.verify_session_token(auth_token)
             if not user_data:
-                return ResponseHelpers.error_response('Invalid or expired token', 401)
+                return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
             csr_user_id = user_data['id']
             
-            # Extract query parameters
-            status_filter = request.args.get('status')
-            
-            # Extract pagination
-            page, limit = PaginationHelpers.get_pagination_params(request)
+            # Parse pagination
+            try:
+                page = int(page_str) if page_str else 1
+                limit = int(limit_str) if limit_str else 10
+            except:
+                page = 1
+                limit = 10
             
             # Call ENTITY layer
             result = Shortlist.search_shortlist(
@@ -71,12 +43,12 @@ class GetShortlistController:
             )
             
             # Return response
-            return ResponseHelpers.success_response(
+            return (ResponseHelpers.success_response(
                 data=result.get('data', []),
                 message='Shortlist retrieved successfully',
                 pagination=result.get('pagination')
-            ), 200
+            ), 200)
             
         except Exception as e:
             print(f"[ERROR] Get shortlist failed: {str(e)}")
-            return ResponseHelpers.error_response('Internal server error'), 500
+            return (ResponseHelpers.error_response('Internal server error'), 500)

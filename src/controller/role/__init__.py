@@ -1,11 +1,11 @@
-# Role Controller Module
+# Role Controller Module (2-layer BCE)
 
-from .get_public_roles_controller import GetPublicRolesController, get_public_roles_blueprint
-from .get_all_roles_controller import GetAllRolesController, get_all_roles_blueprint
-from .get_role_controller import GetRoleController, get_role_blueprint
-from .create_role_controller import CreateRoleController, create_role_blueprint
-from .update_role_controller import UpdateRoleController, update_role_blueprint
-from .delete_role_controller import DeleteRoleController, delete_role_blueprint
+from .get_public_roles_controller import GetPublicRolesController
+from .get_all_roles_controller import GetAllRolesController
+from .get_role_controller import GetRoleController
+from .create_role_controller import CreateRoleController
+from .update_role_controller import UpdateRoleController
+from .delete_role_controller import DeleteRoleController
 
 __all__ = [
     'GetPublicRolesController',
@@ -14,10 +14,4 @@ __all__ = [
     'CreateRoleController',
     'UpdateRoleController',
     'DeleteRoleController',
-    'get_public_roles_blueprint',
-    'get_all_roles_blueprint',
-    'get_role_blueprint',
-    'create_role_blueprint',
-    'update_role_blueprint',
-    'delete_role_blueprint'
 ]

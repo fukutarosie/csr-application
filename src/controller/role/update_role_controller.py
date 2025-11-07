@@ -1,26 +1,19 @@
-from flask import Blueprint, request, jsonify
 from src.entity import Role
-from src.controller.auth.auth_middleware import require_role
-
-update_role_blueprint = Blueprint('update_role', __name__)
 
 class UpdateRoleController:
     """Controller for updating an existing role"""
     
-    @update_role_blueprint.route('/api/roles/<int:role_id>', methods=['PUT'])
-    @require_role(Role.USER_ADMIN)
-    def update_role(role_id):
+    @staticmethod
+    def update_role(role_id, data):
         """Update an existing role"""
         try:
-            data = request.get_json()
-            
             # Check if role exists
             role = Role.get_role_by_id(role_id)
             if not role:
-                return jsonify({
+                return ({
                     'success': False,
                     'message': 'Role not found'
-                }), 404
+                }, 404)
             
             # Update role with new data or keep existing values
             updated_role = Role.update_role(
@@ -32,18 +25,18 @@ class UpdateRoleController:
             )
             
             if not updated_role:
-                return jsonify({
+                return ({
                     'success': False,
                     'message': 'Failed to update role'
-                }), 500
+                }, 500)
             
-            return jsonify({
+            return ({
                 'success': True,
                 'data': updated_role,
                 'message': 'Role updated successfully'
-            }), 200
+            }, 200)
         except Exception as e:
-            return jsonify({
+            return ({
                 'success': False,
                 'message': str(e)
-            }), 500
+            }, 500)
