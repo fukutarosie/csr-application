@@ -93,6 +93,8 @@ export default function LoginPage() {
           <p className="mt-2 text-center text-sm text-gray-600">Please sign in to your account</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+
+          {/* Error Message Display */} 
           {error && (
             <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded-lg shadow-sm">
               <div className="flex items-center">
@@ -107,6 +109,8 @@ export default function LoginPage() {
               </div>
             </div>
           )}
+
+          {/* Login Form Fields */}
           <div className="rounded-lg shadow-sm space-y-5">
             <div className="relative">
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">Username</label>
@@ -120,6 +124,7 @@ export default function LoginPage() {
               </div>
             </div>
             
+            {/* Password Field */}
             <div className="relative">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <div className="relative">
@@ -132,6 +137,7 @@ export default function LoginPage() {
               </div>
             </div>
             
+            {/* Role Field */}
             <div className="relative">
               <label htmlFor="role_name" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
               <div className="relative">
@@ -150,6 +156,8 @@ export default function LoginPage() {
             </div>
           </div>
 
+
+          {/* Login Button */}
           <div className="mt-6">
             <button type="submit" disabled={loading} className="group relative w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition duration-150">
               {loading ? (

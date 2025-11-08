@@ -3,7 +3,6 @@ Add to Shortlist Controller - CSR adds PIN request to shortlist (Control Layer)
 """
 
 from src.entity.shortlist import Shortlist
-from src.entity.request import Request
 from src.entity import User
 from src.utils.helpers import RequestHelpers, ResponseHelpers
 
@@ -53,8 +52,7 @@ class AddToShortlistController:
                     400
                 ), 400)
             
-            # Increment shortlist count on the request (analytics)
-            Request.increment_shortlist_count(request_id)
+            # Note: shortlist_count is automatically incremented by Shortlist.add_to_shortlist() in Entity layer
             
             # Return response
             return (ResponseHelpers.success_response(

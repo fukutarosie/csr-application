@@ -3,7 +3,6 @@ Remove from Shortlist Controller - CSR removes request from shortlist (Control L
 """
 
 from src.entity.shortlist import Shortlist
-from src.entity.request import Request
 from src.entity import User
 from src.utils.helpers import ResponseHelpers
 
@@ -27,14 +26,6 @@ class RemoveFromShortlistController:
             
             csr_user_id = user_data['id']
             
-            # Get shortlist entry to get request_id before deletion
-            shortlist_entry = Shortlist.get_shortlist_item(shortlist_id)
-            
-            if shortlist_entry and shortlist_entry.get('csr_user_id') == csr_user_id:
-                request_id = shortlist_entry.get('request_id')
-            else:
-                request_id = None
-            
             # Call ENTITY layer to remove
             success = Shortlist.remove_from_shortlist(
                 shortlist_id=shortlist_id,
@@ -47,9 +38,7 @@ class RemoveFromShortlistController:
                     400
                 ), 400)
             
-            # Decrement shortlist count on the request (analytics)
-            if request_id:
-                Request.decrement_shortlist_count(request_id)
+            # Note: shortlist_count is automatically decremented by Shortlist.remove_from_shortlist() in Entity layer
             
             # Return response
             return (ResponseHelpers.success_response(
