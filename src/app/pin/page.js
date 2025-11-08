@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../components/Header';
-import Alert from '../components/Alert';
+import { useToast } from '../components/ToastProvider';
 import RequestCard from '../components/RequestCard';
 import RequestCardGrid from '../components/RequestCardGrid';
 
@@ -18,8 +18,7 @@ export default function PINDashboard() {
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchServiceType, setSearchServiceType] = useState('');
   const [serviceTypes, setServiceTypes] = useState([]);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const toast = useToast();
   const [completingRequest, setCompletingRequest] = useState(null);
 
   const getToken = () => localStorage.getItem('token');
@@ -65,8 +64,11 @@ export default function PINDashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (response.data.success) {
-        setServiceTypes(response.data.data || []);
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+
+      if (actualData && actualData.success) {
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Error fetching service types:', err);
@@ -111,11 +113,11 @@ export default function PINDashboard() {
       if (response.data.success) {
         setRequests(response.data.data);
       } else {
-        setError(response.data.message);
+        toast.error(response.data.message || 'Failed to load requests');
       }
     } catch (err) {
       console.error('Failed to fetch requests:', err);
-      setError('Failed to load requests');
+      toast.error('Failed to load requests');
     }
   };
 
@@ -133,17 +135,16 @@ export default function PINDashboard() {
       );
 
       if (response.data.success) {
-        setSuccess('Request marked as completed!');
+        toast.success('Request marked as completed!');
         fetchRequests(); // Refresh the list
-        setTimeout(() => setSuccess(''), 3000);
       } else {
-        setError(response.data.message || 'Failed to mark request as completed');
-        setTimeout(() => setError(''), 3000);
+        const msg = response.data.message || 'Failed to mark request as completed';
+        toast.error(msg);
       }
     } catch (err) {
       console.error('Error marking request as completed:', err);
-      setError(err.response?.data?.message || 'Failed to mark request as completed');
-      setTimeout(() => setError(''), 3000);
+      const msg = err.response?.data?.message || 'Failed to mark request as completed';
+      toast.error(msg);
     } finally {
       setCompletingRequest(null);
     }
@@ -178,23 +179,7 @@ export default function PINDashboard() {
     <div className="min-h-screen bg-gray-100">
       <Header title="PIN Dashboard" subtitle={`Welcome, ${user?.full_name}`} />
 
-      {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="error" message={error} onClose={() => setError('')} />
-        </div>
-      )}
-
-      {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="error" message={error} onClose={() => setError('')} />
-        </div>
-      )}
-
-      {success && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="success" message={success} onClose={() => setSuccess('')} />
-        </div>
-      )}
+      {/* Toast notifications will appear via ToastProvider */}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

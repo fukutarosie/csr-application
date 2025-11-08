@@ -1,3 +1,33 @@
+/**
+ * CSR Dashboard - Browse and Shortlist PIN Requests (BOUNDARY LAYER - UI)
+ * 
+ * This component serves as the main dashboard for CSR Representatives to:
+ * 1. Browse active PIN requests
+ * 2. Add/Remove requests to/from their shortlist
+ * 3. Filter and search requests
+ * 
+ * BCE ARCHITECTURE:
+ * - BOUNDARY: This React component (UI/Presentation layer)
+ * - CONTROL: Backend Flask controllers handle business logic
+ * - ENTITY: Backend entity classes handle database operations
+ * 
+ * SEQUENCE FLOW (Add to Shortlist):
+ * 1. CSR clicks star icon → handleToggleShortlist(requestId)
+ * 2. Frontend sends POST to /api/shortlist with JWT token
+ * 3. Backend Boundary validates token → calls Control layer
+ * 4. Control layer validates request → calls Entity layer
+ * 5. Entity layer adds record to database
+ * 6. Response flows back: Entity → Control → Boundary → Frontend
+ * 7. Frontend updates UI state and re-fetches shortlist
+ * 
+ * SEQUENCE FLOW (Remove from Shortlist):
+ * 1. CSR clicks filled star icon → handleToggleShortlist(requestId)
+ * 2. Frontend sends GET to /api/shortlist to find shortlist item ID
+ * 3. Frontend sends DELETE to /api/shortlist/{id} with JWT token
+ * 4. Backend validates and deletes record
+ * 5. Frontend updates UI state
+ */
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -5,24 +35,38 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../components/Header';
 import Alert from '../components/Alert';
+import { useToast } from '../components/ToastProvider';
 import RequestCard from '../components/RequestCard';
 import RequestCardGrid from '../components/RequestCardGrid';
 
 export default function CSRDashboard() {
+  // ===== STATE MANAGEMENT =====
   const router = useRouter();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState([]);
-  const [serviceTypes, setServiceTypes] = useState([]);
-  const [shortlistedIds, setShortlistedIds] = useState([]);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [searchServiceType, setSearchServiceType] = useState('');
-  const [addingToShortlist, setAddingToShortlist] = useState(null);
+  const [user, setUser] = useState(null);                    // Current logged-in user
+  const [loading, setLoading] = useState(true);              // Loading state for initial page load
+  const [requests, setRequests] = useState([]);              // All active PIN requests
+  const [serviceTypes, setServiceTypes] = useState([]);      // Available service types for filtering
+  const [shortlistedIds, setShortlistedIds] = useState([]);  // Array of request IDs that user has shortlisted
+  const [error, setError] = useState('');                    // Error message display
+  const toast = useToast();
+  const [searchKeyword, setSearchKeyword] = useState('');    // Search filter
+  const [searchServiceType, setSearchServiceType] = useState(''); // Service type filter
+  const [addingToShortlist, setAddingToShortlist] = useState(null); // Track which request is being added/removed
 
+  /**
+   * Helper: Get JWT authentication token from localStorage
+   * Used in all API calls requiring authentication
+   */
   const getToken = () => localStorage.getItem('token');
 
+  /**
+   * INITIALIZATION EFFECT
+   * Runs on component mount to:
+   * 1. Validate user authentication and role
+   * 2. Fetch initial data (requests, service types, shortlist)
+   * 
+   * Security: Redirects to login if no token or wrong role
+   */
   useEffect(() => {
     // Check if user is logged in and has CSR Rep role
     const token = localStorage.getItem('token');
@@ -46,31 +90,81 @@ export default function CSRDashboard() {
     setLoading(false);
   }, [router]);
 
+  /**
+   * API CALL: Fetch Service Types
+   * 
+   * ENDPOINT: GET /api/requests/service-types
+   * PURPOSE: Load available service types for filter dropdown
+   * AUTHENTICATION: Not required (public data)
+   * 
+   * SEQUENCE:
+   * Frontend → Backend Boundary → Backend Control → Backend Entity → Database
+   * Response flows back with service types array
+   */
   const fetchServiceTypes = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/requests/service-types');
-      if (response.data.success) {
-        setServiceTypes(response.data.data);
+      
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      
+      if (actualData && actualData.success) {
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Failed to fetch service types:', err);
     }
   };
 
+  /**
+   * API CALL: Fetch Shortlisted Request IDs
+   * 
+   * ENDPOINT: GET /api/shortlist
+   * PURPOSE: Load IDs of requests the current user has shortlisted
+   * AUTHENTICATION: Required (JWT Bearer token)
+   * 
+   * RESPONSE FORMAT: Backend returns array wrapper
+   * [{success: true, data: [{id, request_id, ...}, ...]}]
+   * 
+   * SEQUENCE:
+   * 1. Frontend sends GET with Authorization header
+   * 2. Backend Boundary (get_shortlist_boundary.py) receives request
+   * 3. Backend Control (get_shortlist_controller.py) validates token
+   * 4. Backend Entity (shortlist.py) queries database
+   * 5. Response returns shortlist items for current user
+   * 6. Frontend extracts request_id values into array
+   * 
+   * NOTE: Array wrapper fix applied - accesses response.data[0]
+   */
   const fetchShortlistedIds = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/shortlist', {
         headers: { 'Authorization': `Bearer ${getToken()}` }
       });
-      if (response.data.success) {
-        const ids = response.data.data.map(item => item.request_id);
+      
+      // Backend returns array wrapper - access first element
+      const responseData = Array.isArray(response.data) ? response.data[0] : response.data;
+      
+      if (responseData.success) {
+        const ids = responseData.data.map(item => item.request_id);
         setShortlistedIds(ids);
       }
     } catch (err) {
-      console.error('Failed to fetch shortlisted IDs:', err);
+      console.error('[ERROR] Failed to fetch shortlisted IDs:', err);
     }
   };
 
+  /**
+   * API CALL: Fetch Active PIN Requests
+   * 
+   * ENDPOINT: GET /api/requests?status=ACTIVE
+   * PURPOSE: Load all active PIN requests for CSR to browse
+   * AUTHENTICATION: Required (JWT Bearer token)
+   * 
+   * SEQUENCE:
+   * Frontend → Backend Boundary → Backend Control → Backend Entity → Database
+   * Returns all requests with status='ACTIVE'
+   */
   const fetchRequests = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/requests?status=ACTIVE', {
@@ -87,31 +181,93 @@ export default function CSRDashboard() {
     }
   };
 
+  /**
+   * MAIN SHORTLIST TOGGLE HANDLER
+   * 
+   * PURPOSE: Add or remove a request from the user's shortlist
+   * TRIGGERED BY: User clicking the star icon on a request card
+   * 
+   * SEQUENCE DIAGRAM FLOW:
+   * 
+   * [ADD TO SHORTLIST]
+   * 1. User clicks outline star (☆)
+   * 2. handleToggleShortlist(requestId) called
+   * 3. Check: isCurrentlyShortlisted = false
+   * 4. POST /api/shortlist with {request_id: requestId}
+   * 5. Backend Boundary: add_to_shortlist_boundary.py receives request
+   * 6. Backend Control: add_to_shortlist_controller.py validates
+   * 7. Backend Entity: shortlist.py adds record to database
+   * 8. Frontend receives success response
+   * 9. Update state: add requestId to shortlistedIds array
+   * 10. Re-fetch shortlist to sync with database
+   * 11. UI updates: star becomes filled (⭐), purple badge appears
+   * 
+   * [REMOVE FROM SHORTLIST]
+   * 1. User clicks filled star (⭐)
+   * 2. handleToggleShortlist(requestId) called
+   * 3. Check: isCurrentlyShortlisted = true
+   * 4. GET /api/shortlist to find the shortlist item ID
+   * 5. Find matching item: item.request_id === requestId
+   * 6. DELETE /api/shortlist/{shortlistItemId}
+   * 7. Backend Boundary: remove_from_shortlist_boundary.py receives request
+   * 8. Backend Control: remove_from_shortlist_controller.py validates
+   * 9. Backend Entity: shortlist.py deletes record from database
+   * 10. Frontend receives success response
+   * 11. Update state: remove requestId from shortlistedIds array
+   * 12. Re-fetch shortlist to sync with database
+   * 13. UI updates: star becomes outline (☆), badge removed
+   * 
+   * @param {number} requestId - The ID of the request to add/remove from shortlist
+   */
   const handleToggleShortlist = async (requestId) => {
     const isCurrentlyShortlisted = shortlistedIds.includes(requestId);
     setAddingToShortlist(requestId);
+    setError('');
 
     try {
       if (isCurrentlyShortlisted) {
-        // Remove from shortlist
-        await axios.delete(`http://localhost:5000/api/shortlist/${requestId}`, {
+        // ===== REMOVE FROM SHORTLIST =====
+        // Step 1: Fetch all shortlist items to find the specific item ID
+        const shortlistResponse = await axios.get('http://localhost:5000/api/shortlist', {
           headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-        setShortlistedIds(shortlistedIds.filter(id => id !== requestId));
-        setSuccess('Removed from shortlist');
+        
+        // Fix: Backend returns array wrapper
+        const responseData = Array.isArray(shortlistResponse.data) ? shortlistResponse.data[0] : shortlistResponse.data;
+        const shortlistItem = responseData.data.find(item => item.request_id === requestId);
+        
+        if (shortlistItem) {
+          // Step 2: Delete the shortlist item using its ID
+          await axios.delete(`http://localhost:5000/api/shortlist/${shortlistItem.id}`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+          });
+          
+          // Step 3: Update UI state immediately (optimistic update)
+          setShortlistedIds(prev => prev.filter(id => id !== requestId));
+          toast.success('Removed from shortlist');
+        } else {
+          setError('Could not find shortlist item');
+        }
       } else {
-        // Add to shortlist
+        // ===== ADD TO SHORTLIST =====
+        // Step 1: Send POST request with request_id
         await axios.post('http://localhost:5000/api/shortlist', 
           { request_id: requestId },
           { headers: { 'Authorization': `Bearer ${getToken()}` } }
         );
-        setShortlistedIds([...shortlistedIds, requestId]);
-        setSuccess('Added to shortlist');
+        
+  // Step 2: Update UI state immediately (optimistic update)
+  setShortlistedIds(prev => [...prev, requestId]);
+  toast.success('Added to shortlist');
       }
-      setTimeout(() => setSuccess(''), 3000);
+      
+      // Step 3: Re-fetch from server to ensure UI matches database
+      await fetchShortlistedIds();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update shortlist');
-      setTimeout(() => setError(''), 3000);
+      console.error('Shortlist toggle error:', err);
+      const msg = err.response?.data?.message || 'Failed to update shortlist';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setAddingToShortlist(null);
     }
@@ -168,11 +324,7 @@ export default function CSRDashboard() {
         </div>
       )}
 
-      {success && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="success" message={success} onClose={() => setSuccess('')} />
-        </div>
-      )}
+      {/* transient success messages are shown via the global toast */}
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -265,6 +417,14 @@ export default function CSRDashboard() {
                 request={request}
                 onClick={() => router.push(`/csr/browse/${request.id}`)}
                 theme="purple"
+                badge={
+                  isShortlisted && (
+                    <div className="absolute top-3 right-3 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center gap-1 z-10">
+                      <span>⭐</span>
+                      <span>Shortlisted</span>
+                    </div>
+                  )
+                }
                 actionButton={
                   <div className="flex items-center justify-between pt-4 border-t">
                     <button
@@ -273,16 +433,21 @@ export default function CSRDashboard() {
                         handleToggleShortlist(request.id);
                       }}
                       disabled={addingToShortlist === request.id}
-                      className={`text-2xl transition-transform hover:scale-110 ${
-                        addingToShortlist === request.id ? 'opacity-50' : ''
-                      }`}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                        isShortlisted 
+                          ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      } ${addingToShortlist === request.id ? 'opacity-50 cursor-not-allowed' : ''}`}
                       title={isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
                     >
-                      {isShortlisted ? '❤️' : '🤍'}
+                      <span className="text-xl">{isShortlisted ? '⭐' : '☆'}</span>
+                      <span className="text-sm font-medium">
+                        {addingToShortlist === request.id ? 'Processing...' : (isShortlisted ? 'Shortlisted' : 'Shortlist')}
+                      </span>
                     </button>
                     <button
                       onClick={() => router.push(`/csr/browse/${request.id}`)}
-                      className="flex-1 ml-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                      className="flex-1 ml-3 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
                     >
                       View Details
                     </button>

@@ -228,7 +228,7 @@ class Shortlist:
         try:
             query = supabase.table('shortlist').select(
                 "*",
-                "requests(id, title, description, category, service_type, priority, location_city, status, pin_user_id)",
+                "requests(*)",
                 "users(id, username, full_name, email)"
             ).eq('csr_user_id', csr_user_id)
             

@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import axios from 'axios';
 import Header from '../../../components/Header';
 import Alert from '../../../components/Alert';
+import { useToast } from '../../../components/ToastProvider';
 
 export default function CSRViewRequestDetail() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function CSRViewRequestDetail() {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const toast = useToast();
   const [isShortlisted, setIsShortlisted] = useState(false);
   const [addingToShortlist, setAddingToShortlist] = useState(false);
 
@@ -66,8 +67,12 @@ export default function CSRViewRequestDetail() {
       const response = await axios.get('http://localhost:5000/api/shortlist', {
         headers: { 'Authorization': `Bearer ${getToken()}` }
       });
-      if (response.data.success) {
-        const shortlisted = response.data.data.some(item => item.request_id === parseInt(requestId));
+      
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      
+      if (actualData && actualData.success) {
+        const shortlisted = actualData.data.some(item => item.request_id === parseInt(requestId));
         setIsShortlisted(shortlisted);
       }
     } catch (err) {
@@ -79,12 +84,25 @@ export default function CSRViewRequestDetail() {
     setAddingToShortlist(true);
     try {
       if (isShortlisted) {
-        // Remove from shortlist
-        await axios.delete(`http://localhost:5000/api/shortlist/${requestId}`, {
+        // Remove from shortlist - need to get the shortlist item ID first
+        const response = await axios.get('http://localhost:5000/api/shortlist', {
           headers: { 'Authorization': `Bearer ${getToken()}` }
         });
-        setIsShortlisted(false);
-        setSuccess('Removed from shortlist');
+        
+        // Handle array wrapper
+        const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+        
+        if (actualData && actualData.success) {
+          const shortlistItem = actualData.data.find(item => item.request_id === parseInt(requestId));
+          
+          if (shortlistItem) {
+            await axios.delete(`http://localhost:5000/api/shortlist/${shortlistItem.id}`, {
+              headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+            setIsShortlisted(false);
+            toast.success('Removed from shortlist');
+          }
+        }
       } else {
         // Add to shortlist
         await axios.post('http://localhost:5000/api/shortlist', 
@@ -92,12 +110,12 @@ export default function CSRViewRequestDetail() {
           { headers: { 'Authorization': `Bearer ${getToken()}` } }
         );
         setIsShortlisted(true);
-        setSuccess('Added to shortlist');
+        toast.success('Added to shortlist');
       }
-      setTimeout(() => setSuccess(''), 3000);
+      
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update shortlist');
-      setTimeout(() => setError(''), 3000);
+        const msg = err.response?.data?.message || 'Failed to update shortlist';
+        toast.error(msg);
     } finally {
       setAddingToShortlist(false);
     }
@@ -142,11 +160,7 @@ export default function CSRViewRequestDetail() {
           </div>
         )}
 
-        {success && (
-          <div className="mb-4">
-            <Alert type="success" message={success} onClose={() => setSuccess('')} />
-          </div>
-        )}
+        {/* success messages now shown via global toast */}
 
         {/* Back Button and Shortlist Link */}
         <div className="mb-6 flex items-center justify-between">

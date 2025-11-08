@@ -1,7 +1,32 @@
-'use client';
+"use client";
 
-export default function Alert({ type = 'success', message }) {
-  if (!message) return null;
+import { useEffect, useState } from 'react';
+
+export default function Alert({
+  type = 'success',
+  message,
+  onClose,
+  fixed = false,
+  autoHide = true,
+  timeout = 5000
+}) {
+  const [visible, setVisible] = useState(Boolean(message));
+
+  useEffect(() => {
+    setVisible(Boolean(message));
+  }, [message]);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (!autoHide) return;
+    const t = setTimeout(() => {
+      setVisible(false);
+      if (typeof onClose === 'function') onClose();
+    }, timeout);
+    return () => clearTimeout(t);
+  }, [visible, autoHide, timeout, onClose]);
+
+  if (!message || !visible) return null;
 
   const alertStyles = {
     success: {
@@ -28,9 +53,25 @@ export default function Alert({ type = 'success', message }) {
 
   const style = alertStyles[type] || alertStyles.success;
 
+  const containerClass = fixed
+    ? 'fixed top-4 right-4 z-50 w-full max-w-sm'
+    : 'mb-4';
+
   return (
-    <div className={`mb-4 p-4 ${style.bg} border-l-4 ${style.border} rounded-lg`}>
-      <p className={style.text}>{message}</p>
+    <div className={`${containerClass}`}>
+      <div className={`p-4 ${style.bg} border-l-4 ${style.border} rounded-lg shadow-md flex items-start justify-between`}> 
+        <p className={`${style.text} mr-4 flex-1`}>{message}</p>
+        <button
+          aria-label="Close alert"
+          onClick={() => {
+            setVisible(false);
+            if (typeof onClose === 'function') onClose();
+          }}
+          className="text-gray-500 hover:text-gray-700 ml-2"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }

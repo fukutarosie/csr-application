@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../../components/Header';
-import Alert from '../../components/Alert';
+import { useToast } from '../../components/ToastProvider';
 
 export default function CompletedMatches() {
   const router = useRouter();
@@ -12,6 +12,7 @@ export default function CompletedMatches() {
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const toast = useToast();
   
   // Date filters
   const [startDate, setStartDate] = useState('');
@@ -71,7 +72,9 @@ export default function CompletedMatches() {
         }
       }
     } catch (err) {
-      setError('Failed to fetch completed matches');
+      const msg = 'Failed to fetch completed matches';
+      setError(msg);
+      toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);

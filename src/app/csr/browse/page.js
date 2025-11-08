@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../../components/Header';
 import Alert from '../../components/Alert';
+import { useToast } from '../../components/ToastProvider';
 import RequestCard from '../../components/RequestCard';
 import RequestCardGrid from '../../components/RequestCardGrid';
 
@@ -16,7 +17,7 @@ export default function BrowseRequests() {
   const [serviceTypes, setServiceTypes] = useState([]);
   const [shortlistedIds, setShortlistedIds] = useState([]);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const toast = useToast();
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchServiceType, setSearchServiceType] = useState('');
   const [addingToShortlist, setAddingToShortlist] = useState(null);
@@ -83,6 +84,7 @@ export default function BrowseRequests() {
     } catch (err) {
       console.error('Failed to fetch requests:', err);
       setError('Failed to load requests');
+      toast.error('Failed to load requests');
     }
   };
 
@@ -100,9 +102,8 @@ export default function BrowseRequests() {
   const handleToggleShortlist = async (requestId) => {
     const isShortlisted = shortlistedIds.includes(requestId);
     
-    setAddingToShortlist(requestId);
-    setError('');
-    setSuccess('');
+  setAddingToShortlist(requestId);
+  setError('');
 
     try {
       if (isShortlisted) {
@@ -117,7 +118,7 @@ export default function BrowseRequests() {
             `http://localhost:5000/api/shortlist/${shortlistItem.id}`,
             { headers: { 'Authorization': `Bearer ${getToken()}` } }
           );
-          setSuccess('Removed from shortlist!');
+          toast.success('Removed from shortlist!');
           setShortlistedIds(prev => prev.filter(id => id !== requestId));
         }
       } else {
@@ -128,7 +129,7 @@ export default function BrowseRequests() {
         );
 
         if (response.data.success) {
-          setSuccess('Added to shortlist!');
+          toast.success('Added to shortlist!');
           setShortlistedIds(prev => [...prev, requestId]);
         }
       }
@@ -136,8 +137,10 @@ export default function BrowseRequests() {
       console.error('Failed to toggle shortlist:', err);
       if (err.response?.status === 400) {
         setError(err.response.data.message || 'Failed to update shortlist');
+        toast.error(err.response.data.message || 'Failed to update shortlist');
       } else {
         setError('Failed to update shortlist');
+        toast.error('Failed to update shortlist');
       }
     } finally {
       setAddingToShortlist(null);
@@ -170,11 +173,7 @@ export default function BrowseRequests() {
         </div>
       )}
 
-      {success && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="success" message={success} onClose={() => setSuccess('')} />
-        </div>
-      )}
+      {/* success messages now shown via global toast */}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Search Panel */}

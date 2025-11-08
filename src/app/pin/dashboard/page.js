@@ -7,7 +7,7 @@ import Link from 'next/link';
 import Header from '../../components/Header';
 import RequestCard from '../../components/RequestCard';
 import RequestCardGrid from '../../components/RequestCardGrid';
-import Alert from '../../components/Alert';
+import { useToast } from '../../components/ToastProvider';
 
 export default function PINDashboard() {
   const searchParams = useSearchParams();
@@ -22,7 +22,7 @@ export default function PINDashboard() {
   const [searchServiceType, setSearchServiceType] = useState('');
   const [serviceTypes, setServiceTypes] = useState([]);
   const [highlightedRequestId, setHighlightedRequestId] = useState(null);
-  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const toast = useToast();
   const highlightRef = useRef(null);
 
   useEffect(() => {
@@ -32,12 +32,8 @@ export default function PINDashboard() {
     // Set highlighted request ID if provided
     if (newRequestId) {
       setHighlightedRequestId(parseInt(newRequestId));
-      setShowSuccessAlert(true);
-      
-      // Hide success alert after 5 seconds
-      setTimeout(() => {
-        setShowSuccessAlert(false);
-      }, 5000);
+      // show a transient toast for request creation
+      toast.success('✅ Request created successfully!');
     }
   }, [filterStatus, newRequestId]);
 
@@ -140,6 +136,7 @@ export default function PINDashboard() {
       
       if (!token) {
         setError('Not authenticated');
+        toast.error('Not authenticated');
         return;
       }
 
@@ -158,9 +155,11 @@ export default function PINDashboard() {
         fetchAnalytics(requestsData);
       } else {
         setError(response.data.message);
+        toast.error(response.data.message);
       }
     } catch (err) {
       setError(err.message);
+      toast.error(err.message || 'Error fetching requests');
       console.error('Error fetching requests:', err);
     } finally {
       setLoading(false);

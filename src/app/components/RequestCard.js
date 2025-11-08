@@ -17,7 +17,8 @@ export default function RequestCard({
   theme = 'blue',
   extraInfo = null,
   actionButton = null,
-  analytics = null  // 🆕 US-27 & US-28: Analytics data
+  analytics = null,  // 🆕 US-27 & US-28: Analytics data
+  badge = null  // 🆕 Custom badge to display (e.g., shortlist indicator)
 }) {
   const themeColors = {
     blue: {
@@ -57,8 +58,11 @@ export default function RequestCard({
   return (
     <div 
       onClick={onClick}
-      className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden cursor-pointer border border-gray-200 ${colors.border}`}
+      className={`bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden cursor-pointer border border-gray-200 ${colors.border} relative`}
     >
+      {/* Custom Badge (e.g., Shortlisted indicator) */}
+      {badge}
+      
       {/* Image */}
       <div className="relative h-48 bg-gray-200">
         {request.image_url ? (

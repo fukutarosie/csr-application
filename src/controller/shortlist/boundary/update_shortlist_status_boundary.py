@@ -10,12 +10,18 @@ update_shortlist_status_boundary = Blueprint(
     url_prefix='/api/shortlist'
 )
 
+@update_shortlist_status_boundary.route('/<int:shortlist_id>/status', methods=['PATCH', 'PUT'])
 @update_shortlist_status_boundary.route('/<int:shortlist_id>', methods=['PUT'])
 @require_role('CSR Rep')
 def update_status(shortlist_id):
-    """Update shortlist entry status"""
-    auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    payload = request.get_json()
-    
-    response, status = UpdateShortlistStatusController.update_status(auth_token, shortlist_id, payload)
-    return jsonify(response), status
+        """Update shortlist entry status
+
+        Exposes both:
+            - PATCH /api/shortlist/<id>/status  (used by frontend)
+            - PUT   /api/shortlist/<id>         (backwards-compatible)
+        """
+        auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        payload = request.get_json()
+
+        response, status = UpdateShortlistStatusController.update_status(auth_token, shortlist_id, payload)
+        return jsonify(response), status

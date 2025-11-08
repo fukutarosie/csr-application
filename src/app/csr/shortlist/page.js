@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../../components/Header';
-import Alert from '../../components/Alert';
+import { useToast } from '../../components/ToastProvider';
 
 export default function MyShortlist() {
   const router = useRouter();
@@ -12,10 +12,10 @@ export default function MyShortlist() {
   const [loading, setLoading] = useState(true);
   const [shortlist, setShortlist] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const toast = useToast();
   const [statusFilter, setStatusFilter] = useState('');
   const [searchServiceType, setSearchServiceType] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [editingItem, setEditingItem] = useState(null);
@@ -47,8 +47,12 @@ export default function MyShortlist() {
   const fetchServiceTypes = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/requests/service-types');
-      if (response.data.success) {
-        setServiceTypes(response.data.data);
+      
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      
+      if (actualData && actualData.success) {
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Failed to fetch service types:', err);
@@ -57,18 +61,27 @@ export default function MyShortlist() {
 
   const fetchShortlist = async () => {
     try {
+      const token = getToken();
       const params = statusFilter ? { status: statusFilter } : {};
+      
       const response = await axios.get('http://localhost:5000/api/shortlist', {
-        headers: { 'Authorization': `Bearer ${getToken()}` },
+        headers: { 'Authorization': `Bearer ${token}` },
         params
       });
 
-      if (response.data.success) {
-        setShortlist(response.data.data);
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      
+      if (actualData && actualData.success) {
+        const items = actualData.data || [];
+        setShortlist(items);
+        toast.success(`Loaded ${items.length} shortlist items`);
+      } else {
+        toast.error(actualData?.message || 'Failed to load shortlist');
       }
     } catch (err) {
       console.error('Failed to fetch shortlist:', err);
-      setError('Failed to load shortlist');
+      toast.error('Failed to load shortlist');
     }
   };
 
@@ -82,12 +95,33 @@ export default function MyShortlist() {
       );
 
       if (response.data.success) {
-        setSuccess('Removed from shortlist successfully');
+        toast.success('Removed from shortlist successfully');
         fetchShortlist();
       }
     } catch (err) {
       console.error('Failed to remove:', err);
-      setError('Failed to remove from shortlist');
+      toast.error('Failed to remove from shortlist');
+    }
+  };
+
+  const handleTakeOpportunity = async (shortlistId) => {
+    if (!confirm('Do you want to take this opportunity? This will mark it as In Progress.')) return;
+
+    try {
+      const payload = { status: 'IN_PROGRESS' };
+      const response = await axios.patch(
+        `http://localhost:5000/api/shortlist/${shortlistId}/status`,
+        payload,
+        { headers: { 'Authorization': `Bearer ${getToken()}` } }
+      );
+
+      if (response.data.success) {
+        toast.success('Marked as In Progress');
+        fetchShortlist();
+      }
+    } catch (err) {
+      console.error('Failed to take opportunity:', err);
+      toast.error('Failed to take opportunity');
     }
   };
 
@@ -115,13 +149,13 @@ export default function MyShortlist() {
       );
 
       if (response.data.success) {
-        setSuccess('Status updated successfully');
+        toast.success('Status updated successfully');
         setEditingItem(null);
         fetchShortlist();
       }
     } catch (err) {
       console.error('Failed to update status:', err);
-      setError('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
 
@@ -130,6 +164,13 @@ export default function MyShortlist() {
   };
 
   const filteredShortlist = shortlist.filter(item => {
+    const matchesQuery = (() => {
+      if (!searchQuery) return true;
+      const q = searchQuery.toLowerCase();
+      const title = (item.requests?.title || '').toLowerCase();
+      const desc = (item.requests?.description || '').toLowerCase();
+      return title.includes(q) || desc.includes(q);
+    })();
     const matchesServiceType = !searchServiceType || 
       item.requests?.service_type === searchServiceType;
     
@@ -141,7 +182,7 @@ export default function MyShortlist() {
       return true;
     })();
     
-    return matchesServiceType && matchesDateRange;
+    return matchesQuery && matchesServiceType && matchesDateRange;
   });
 
   const clearFilters = () => {
@@ -185,17 +226,7 @@ export default function MyShortlist() {
     <div className="min-h-screen bg-gray-100">
       <Header title="My Shortlist" subtitle="Manage your shortlisted requests" />
 
-      {error && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="error" message={error} onClose={() => setError('')} />
-        </div>
-      )}
-
-      {success && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Alert type="success" message={success} onClose={() => setSuccess('')} />
-        </div>
-      )}
+      {/* Global toast notifications will appear top-right via ToastProvider */}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filter Tabs */}
@@ -225,18 +256,22 @@ export default function MyShortlist() {
             >
               Completed
             </button>
-            <button
-              onClick={() => handleFilterChange('DECLINED')}
-              className={`flex-1 px-6 py-3 text-sm font-medium ${statusFilter === 'DECLINED' ? 'border-b-2 border-red-600 text-red-600' : 'text-gray-500 hover:text-gray-700'}`}
-            >
-              Declined
-            </button>
           </div>
         </div>
 
         {/* Search Filters */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-lg font-semibold mb-4">🔍 Filter Shortlist</h2>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search title or description</label>
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by title or description..."
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
@@ -320,7 +355,6 @@ export default function MyShortlist() {
                           <option value="SHORTLISTED">Shortlisted</option>
                           <option value="IN_PROGRESS">In Progress</option>
                           <option value="COMPLETED">Completed</option>
-                          <option value="DECLINED">Declined</option>
                         </select>
                       </div>
 
@@ -421,6 +455,12 @@ export default function MyShortlist() {
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                       >
                         ✏️ Update Status
+                      </button>
+                      <button
+                        onClick={() => handleTakeOpportunity(item.id)}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                      >
+                        🚀 Take opportunity
                       </button>
                       <button
                         onClick={() => handleRemove(item.id)}

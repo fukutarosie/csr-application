@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../../components/Header';
 import Alert from '../../components/Alert';
+import { useToast } from '../../components/ToastProvider';
 
 export default function CSRHistory() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function CSRHistory() {
   const [completedItems, setCompletedItems] = useState([]);
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
+  const toast = useToast();
 
   const getToken = () => localStorage.getItem('token');
 
@@ -49,7 +51,9 @@ export default function CSRHistory() {
       }
     } catch (err) {
       console.error('Failed to fetch history:', err);
-      setError('Failed to load history');
+      const msg = 'Failed to load history';
+      setError(msg);
+      toast.error(msg);
     }
   };
 

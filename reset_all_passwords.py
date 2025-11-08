@@ -9,7 +9,7 @@ supabase = get_supabase()
 STANDARD_PASSWORD = 'password123'
 
 print(f"\n{'='*70}")
-print("🔐 RESETTING ALL USER PASSWORDS TO 'password123'")
+print("RESETTING ALL USER PASSWORDS TO 'password123'")
 print(f"{'='*70}\n")
 print("This will update ALL users in the database for consistency.\n")
 
@@ -39,16 +39,16 @@ try:
                     'password': hashed_password
                 }).eq('id', user['id']).execute()
                 
-                status = "✓" if user['is_active'] else "○"
+                status = "[ACTIVE]" if user['is_active'] else "[INACTIVE]"
                 print(f"{status} {user['username']:<30} -> password123")
                 success_count += 1
                 
             except Exception as e:
-                print(f"✗ {user['username']:<30} -> Error: {str(e)}")
+                print(f"[ERROR] {user['username']:<30} -> Error: {str(e)}")
                 error_count += 1
         
         print(f"\n{'='*70}")
-        print("✅ PASSWORD RESET COMPLETE!")
+        print("PASSWORD RESET COMPLETE!")
         print(f"{'='*70}")
         print(f"\nSuccessfully updated: {success_count} users")
         if error_count > 0:
@@ -67,4 +67,4 @@ try:
         print(f"\n{'='*70}\n")
         
 except Exception as e:
-    print(f"✗ Error: {str(e)}")
+    print(f"[ERROR] Error: {str(e)}")
