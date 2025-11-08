@@ -30,39 +30,27 @@ class Request:
     
     VALID_STATUSES = [STATUS_ACTIVE, STATUS_SUSPENDED, STATUS_FULFILLED, STATUS_CANCELLED]
     
-    # Priority levels
-    PRIORITY_LOW = 'LOW'
-    PRIORITY_MEDIUM = 'MEDIUM'
-    PRIORITY_HIGH = 'HIGH'
-    PRIORITY_URGENT = 'URGENT'
-    
-    VALID_PRIORITIES = [PRIORITY_LOW, PRIORITY_MEDIUM, PRIORITY_HIGH, PRIORITY_URGENT]
-    
     @staticmethod
     def create_request(
         pin_user_id: int,
         title: str,
         description: str,
-        category: str,
-        service_type: str = None,
-        priority: str = PRIORITY_MEDIUM,
-        location_city: str = None,
-        location_detail: str = None,
-        requested_by_date: str = None
+        service_type: str,
+        region: str,
+        requested_by_date: str,
+        image_url: str
     ) -> Optional[Dict]:
         """
         Create a new request
         
         Args:
             pin_user_id: User ID of the PIN user (must have PIN role)
-            title: Request title (required)
-            description: Request description (required)
-            category: Category (must exist in request_categories)
-            service_type: Service type (optional, must exist in service_types)
-            priority: Priority level (LOW, MEDIUM, HIGH, URGENT)
-            location_city: City where help needed
-            location_detail: Detailed location
-            requested_by_date: Date help is needed
+            title: Request title (required, min 5 characters)
+            description: Request description (required, min 10 characters)
+            service_type: Service type (required, must exist in service_types)
+            region: Region where help needed (required, e.g., Hougang, Sengkang)
+            requested_by_date: Date help is needed (required)
+            image_url: URL path to uploaded image (required)
             
         Returns:
             Created request dict with id, or None if failed
@@ -79,38 +67,27 @@ class Request:
                 return None  # User is not PIN role
             
             # Validate required fields
-            if not title or not description:
+            if not title or not description or not service_type or not region or not requested_by_date or not image_url:
                 return None
             
-            # Validate category exists
-            if category:
-                cat_check = supabase.table('request_categories').select('id').eq('category_name', category).execute()
-                if not cat_check.data:
-                    return None  # Invalid category
-            
-            # Validate service_type if provided
-            if service_type:
-                svc_check = supabase.table('service_types').select('id').eq('service_name', service_type).execute()
-                if not svc_check.data:
-                    return None  # Invalid service type
-            
-            # Validate priority
-            if priority not in Request.VALID_PRIORITIES:
-                priority = Request.PRIORITY_MEDIUM
+            # Validate service_type (now required)
+            svc_check = supabase.table('service_types').select('id').eq('service_name', service_type).execute()
+            if not svc_check.data:
+                return None  # Invalid service type
             
             # Prepare data
             request_data = {
                 'pin_user_id': pin_user_id,
                 'title': title,
                 'description': description,
-                'category': category,
                 'service_type': service_type,
-                'priority': priority,
-                'location_city': location_city,
-                'location_detail': location_detail,
+                'region': region,
                 'requested_by_date': requested_by_date,
+                'image_url': image_url,
                 'status': Request.STATUS_ACTIVE,
                 'is_archived': False,
+                'view_count': 0,
+                'shortlist_count': 0,
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
@@ -179,6 +156,35 @@ class Request:
             return []
     
     @staticmethod
+    def get_all_requests(status: str = None) -> List[Dict]:
+        """
+        Get all requests in the system (for CSR Rep and Platform Manager)
+        
+        Args:
+            status: Optional filter by status (ACTIVE, SUSPENDED, etc.)
+            
+        Returns:
+            List of requests
+        """
+        supabase = get_supabase()
+        
+        try:
+            query = supabase.table('requests').select(
+                "*",
+                "users(id, username, full_name)"
+            )
+            
+            if status:
+                query = query.eq('status', status)
+            
+            result = query.order('created_at', desc=True).execute()
+            return result.data if result.data else []
+            
+        except Exception as e:
+            print(f"Error getting all requests: {str(e)}")
+            return []
+    
+    @staticmethod
     def update_request(
         request_id: int,
         pin_user_id: int,
@@ -210,21 +216,11 @@ class Request:
             if req['status'] != Request.STATUS_ACTIVE:
                 return None  # Can only edit ACTIVE requests
             
-            # Validate category if being updated
-            if 'category' in updates and updates['category']:
-                cat_check = supabase.table('request_categories').select('id').eq('category_name', updates['category']).execute()
-                if not cat_check.data:
-                    return None
-            
             # Validate service_type if being updated
             if 'service_type' in updates and updates['service_type']:
                 svc_check = supabase.table('service_types').select('id').eq('service_name', updates['service_type']).execute()
                 if not svc_check.data:
                     return None
-            
-            # Validate priority if being updated
-            if 'priority' in updates and updates['priority'] not in Request.VALID_PRIORITIES:
-                return None
             
             # Add updated_at timestamp
             updates['updated_at'] = datetime.utcnow().isoformat()
@@ -253,35 +249,46 @@ class Request:
         supabase = get_supabase()
         
         try:
-            # Verify ownership
+            # Verify ownership and current status
             current = supabase.table('requests').select('pin_user_id, status').eq('id', request_id).execute()
             if not current.data:
+                print(f"Request {request_id} not found")
                 return None
             
             if current.data[0]['pin_user_id'] != pin_user_id:
+                print(f"Request {request_id} not owned by user {pin_user_id}")
                 return None  # Not the owner
+            
+            if current.data[0]['status'] != Request.STATUS_ACTIVE:
+                print(f"Request {request_id} is not ACTIVE (status: {current.data[0]['status']})")
+                return None  # Can only suspend ACTIVE requests
             
             # Update status to SUSPENDED
             result = supabase.table('requests').update({
                 'status': Request.STATUS_SUSPENDED,
-                'suspended_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }).eq('id', request_id).execute()
             
-            # Record in audit trail
+            # Record in audit trail if available
             if result.data:
-                Request._record_status_change(
-                    request_id=request_id,
-                    old_status=current.data[0]['status'],
-                    new_status=Request.STATUS_SUSPENDED,
-                    changed_by=pin_user_id,
-                    reason=reason
-                )
+                try:
+                    Request._record_status_change(
+                        request_id=request_id,
+                        old_status=current.data[0]['status'],
+                        new_status=Request.STATUS_SUSPENDED,
+                        changed_by=pin_user_id,
+                        reason=reason
+                    )
+                except Exception as audit_error:
+                    print(f"Audit trail failed (non-critical): {str(audit_error)}")
             
             return result.data[0] if result.data else None
             
         except Exception as e:
             print(f"Error suspending request: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
             return None
     
     @staticmethod
@@ -463,3 +470,256 @@ class Request:
         except Exception as e:
             print(f"Error recording status change: {str(e)}")
             return False
+    
+    # ===== ANALYTICS METHODS (US-27, US-28) =====
+    
+    @staticmethod
+    def get_request_analytics(request_id: int) -> Optional[Dict]:
+        """
+        Get analytics for a specific request (view count, shortlist count).
+        Supports US-27 and US-28.
+        
+        Args:
+            request_id: Request ID
+        
+        Returns:
+            {
+                'request_id': int,
+                'view_count': int,
+                'shortlist_count': int,
+                'title': str
+            } or None if not found
+        """
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('requests').select("id, title, view_count, shortlist_count").eq('id', request_id).execute()
+            
+            if result.data:
+                request = result.data[0]
+                return {
+                    'request_id': request['id'],
+                    'title': request['title'],
+                    'view_count': request.get('view_count', 0),
+                    'shortlist_count': request.get('shortlist_count', 0)
+                }
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error getting analytics for request {request_id}: {str(e)}")
+            return None
+    
+    @staticmethod
+    def increment_view_count(request_id: int) -> bool:
+        """
+        Increment view count when a CSR views the request.
+        Called by CSR controller when viewing request details.
+        
+        Args:
+            request_id: Request ID
+        
+        Returns:
+            True on success, False on failure
+        """
+        supabase = get_supabase()
+        
+        try:
+            # Get current view count
+            request = Request.get_request(request_id)
+            if not request:
+                return False
+            
+            current_count = request.get('view_count', 0)
+            
+            # Increment by 1
+            result = supabase.table('requests').update({
+                'view_count': current_count + 1,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', request_id).execute()
+            
+            return bool(result.data)
+            
+        except Exception as e:
+            print(f"Error incrementing view count for request {request_id}: {str(e)}")
+            return False
+    
+    @staticmethod
+    def increment_shortlist_count(request_id: int) -> bool:
+        """
+        Increment shortlist count when a CSR adds request to shortlist.
+        Called by Shortlist entity when adding to shortlist.
+        
+        Args:
+            request_id: Request ID
+        
+        Returns:
+            True on success, False on failure
+        """
+        supabase = get_supabase()
+        
+        try:
+            # Get current shortlist count
+            request = Request.get_request(request_id)
+            if not request:
+                return False
+            
+            current_count = request.get('shortlist_count', 0)
+            
+            # Increment by 1
+            result = supabase.table('requests').update({
+                'shortlist_count': current_count + 1,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', request_id).execute()
+            
+            return bool(result.data)
+            
+        except Exception as e:
+            print(f"Error incrementing shortlist count for request {request_id}: {str(e)}")
+            return False
+    
+    @staticmethod
+    def decrement_shortlist_count(request_id: int) -> bool:
+        """
+        Decrement shortlist count when a CSR removes request from shortlist.
+        Called by Shortlist entity when removing from shortlist.
+        
+        Args:
+            request_id: Request ID
+        
+        Returns:
+            True on success, False on failure
+        """
+        supabase = get_supabase()
+        
+        try:
+            # Get current shortlist count
+            request = Request.get_request(request_id)
+            if not request:
+                return False
+            
+            current_count = request.get('shortlist_count', 0)
+            
+            # Decrement by 1 (but don't go below 0)
+            new_count = max(0, current_count - 1)
+            
+            result = supabase.table('requests').update({
+                'shortlist_count': new_count,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('id', request_id).execute()
+            
+            return bool(result.data)
+            
+        except Exception as e:
+            print(f"Error decrementing shortlist count for request {request_id}: {str(e)}")
+            return False
+    
+    # ===== COMPLETED MATCHES (US-29, US-30) =====
+    
+    @staticmethod
+    def get_completed_matches(user_id: int, filters: Dict = None, page: int = 1, limit: int = 10) -> Dict:
+        """
+        Get completed matches for a PIN user (requests that have been fulfilled).
+        Supports US-29 and US-30.
+        
+        Args:
+            user_id: PIN user ID
+            filters: Optional filters:
+                - start_date: Filter by fulfilled_at >= start_date
+                - end_date: Filter by fulfilled_at <= end_date
+            page: Page number (1-indexed)
+            limit: Results per page
+        
+        Returns:
+            {
+                'data': [requests with shortlist details],
+                'pagination': {
+                    'page': int,
+                    'limit': int,
+                    'total': int,
+                    'total_pages': int
+                }
+            }
+        """
+        supabase = get_supabase()
+        
+        try:
+            # Build query for FULFILLED requests
+            query = supabase.table('requests').select("*", count='exact').eq('pin_user_id', user_id).eq('status', 'FULFILLED')
+            
+            # Apply date filters
+            if filters:
+                if filters.get('start_date'):
+                    query = query.gte('fulfilled_at', filters['start_date'])
+                if filters.get('end_date'):
+                    query = query.lte('fulfilled_at', filters['end_date'])
+            
+            # Get total count
+            count_result = query.execute()
+            total = count_result.count if hasattr(count_result, 'count') else len(count_result.data)
+            
+            # Apply pagination
+            offset = (page - 1) * limit
+            query = query.order('fulfilled_at', desc=True).range(offset, offset + limit - 1)
+            
+            # Execute query
+            result = query.execute()
+            
+            # For each completed request, get the associated shortlist entry (CSR who helped)
+            completed_requests = []
+            for request in result.data:
+                # Get shortlist entries for this request (status = COMPLETED)
+                shortlist_result = supabase.table('shortlist').select("*").eq('request_id', request['id']).eq('status', 'COMPLETED').execute()
+                
+                request['matched_csr'] = shortlist_result.data if shortlist_result.data else []
+                completed_requests.append(request)
+            
+            return {
+                'data': completed_requests,
+                'pagination': {
+                    'page': page,
+                    'limit': limit,
+                    'total': total,
+                    'total_pages': (total + limit - 1) // limit
+                }
+            }
+            
+        except Exception as e:
+            print(f"Error getting completed matches for user {user_id}: {str(e)}")
+            return {'data': [], 'pagination': {'page': page, 'limit': limit, 'total': 0, 'total_pages': 0}}
+    
+    # ===== LOOKUP TABLES =====
+    
+    @staticmethod
+    def get_request_categories() -> List[Dict]:
+        """
+        Get all available request categories.
+        
+        Returns:
+            List of category dicts
+        """
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('request_categories').select("*").order('category_name').execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting request categories: {str(e)}")
+            return []
+    
+    @staticmethod
+    def get_service_types() -> List[Dict]:
+        """
+        Get all available service types.
+        
+        Returns:
+            List of service type dicts
+        """
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('service_types').select("*").order('service_name').execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting service types: {str(e)}")
+            return []

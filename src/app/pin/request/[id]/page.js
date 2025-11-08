@@ -5,6 +5,7 @@ import axios from 'axios';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useParams } from 'next/navigation';
+import Header from '../../../components/Header';
 
 export default function RequestDetail() {
   const router = useRouter();
@@ -14,13 +15,13 @@ export default function RequestDetail() {
   const [request, setRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
   const [updating, setUpdating] = useState(false);
   const [suspending, setSuspending] = useState(false);
   const [suspendReason, setSuspendReason] = useState('');
 
-  const [categories, setCategories] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
 
   useEffect(() => {
@@ -61,19 +62,8 @@ export default function RequestDetail() {
 
   const fetchLookupData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      
-      const categoriesRes = await axios.get(
-        'http://localhost:5000/api/lookup/categories',
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (categoriesRes.data.success) {
-        setCategories(categoriesRes.data.data || []);
-      }
-
       const typesRes = await axios.get(
-        'http://localhost:5000/api/lookup/service-types',
-        { headers: { Authorization: `Bearer ${token}` } }
+        'http://localhost:5000/api/requests/service-types'
       );
       if (typesRes.data.success) {
         setServiceTypes(typesRes.data.data || []);
@@ -95,12 +85,13 @@ export default function RequestDetail() {
     e.preventDefault();
     setUpdating(true);
     setError(null);
+    setSuccess(null);
 
     try {
       const token = localStorage.getItem('token');
       
       const updates = {};
-      ['title', 'description', 'category', 'service_type', 'priority', 'location_city', 'location_detail', 'requested_by_date'].forEach(key => {
+      ['title', 'description', 'service_type', 'region', 'requested_by_date', 'image_url'].forEach(key => {
         if (formData[key] !== request[key]) {
           updates[key] = formData[key];
         }
@@ -124,6 +115,10 @@ export default function RequestDetail() {
         setRequest(response.data.data);
         setFormData(response.data.data);
         setEditMode(false);
+        setSuccess('Request updated successfully!');
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         setError(response.data.message);
       }
@@ -139,6 +134,7 @@ export default function RequestDetail() {
     e.preventDefault();
     setSuspending(true);
     setError(null);
+    setSuccess(null);
 
     try {
       const token = localStorage.getItem('token');
@@ -155,6 +151,10 @@ export default function RequestDetail() {
         setRequest(response.data.data);
         setSuspendReason('');
         setEditMode(false);
+        setSuccess('Request suspended successfully!');
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccess(null), 3000);
       } else {
         setError(response.data.message);
       }
@@ -188,10 +188,13 @@ export default function RequestDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          <p className="text-gray-600 mt-4">Loading request...</p>
+      <div className="min-h-screen bg-gray-100">
+        <Header title="Request Details" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex items-center justify-center">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="text-gray-600 mt-4">Loading request...</p>
+          </div>
         </div>
       </div>
     );
@@ -199,8 +202,9 @@ export default function RequestDetail() {
 
   if (error && !request) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-100">
+        <Header title="Request Details" />
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <Link href="/pin/dashboard">
             <button className="text-blue-600 hover:text-blue-800 font-semibold mb-4">
               ← Back to Dashboard
@@ -217,8 +221,9 @@ export default function RequestDetail() {
 
   if (!request) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-100">
+        <Header title="Request Details" />
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <p className="text-gray-700">Request not found</p>
         </div>
       </div>
@@ -226,19 +231,22 @@ export default function RequestDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
-      <div className="max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <Link href="/pin/dashboard">
-            <button className="text-blue-600 hover:text-blue-800 font-semibold mb-4">
-              ← Back to Dashboard
-            </button>
-          </Link>
+    <div className="min-h-screen bg-gray-100">
+      <Header title="Request Details" subtitle={request.title} />
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back Button */}
+        <Link href="/pin/dashboard">
+          <button className="text-blue-600 hover:text-blue-800 font-semibold mb-6">
+            ← Back to Dashboard
+          </button>
+        </Link>
+        
+        {/* Request Header */}
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-4xl font-bold text-gray-800">{request.title}</h1>
-              <div className="flex gap-3 mt-3">
+              <h2 className="text-2xl font-bold text-gray-800 mb-3">{request.title}</h2>
+              <div className="flex gap-3">
                 <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusBadge(request.status)}`}>
                   {request.status}
                 </span>
@@ -266,20 +274,40 @@ export default function RequestDetail() {
           </div>
         )}
 
+        {/* Success Message */}
+        {success && (
+          <div className="mb-6 p-4 bg-green-50 border-l-4 border-green-500 rounded">
+            <p className="text-green-700 font-semibold">Success</p>
+            <p className="text-green-600">{success}</p>
+          </div>
+        )}
+
         {!editMode ? (
           <>
             {/* View Mode */}
             <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
+              {/* Image Display */}
+              {request.image_url && (
+                <div className="mb-8">
+                  <p className="text-gray-500 text-sm font-semibold uppercase mb-3">Request Image</p>
+                  <img 
+                    src={`http://localhost:5000${request.image_url}`}
+                    alt={request.title}
+                    className="w-full max-h-96 object-cover rounded-lg border-2 border-gray-200 shadow-sm"
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 {/* Left Column */}
                 <div>
                   <div className="mb-6">
-                    <p className="text-gray-500 text-sm font-semibold uppercase">Category</p>
-                    <p className="text-gray-800 text-lg">{request.category}</p>
-                  </div>
-                  <div className="mb-6">
                     <p className="text-gray-500 text-sm font-semibold uppercase">Service Type</p>
                     <p className="text-gray-800 text-lg">{request.service_type || 'Not specified'}</p>
+                  </div>
+                  <div className="mb-6">
+                    <p className="text-gray-500 text-sm font-semibold uppercase">Region</p>
+                    <p className="text-gray-800 text-lg">{request.region || 'Not specified'}</p>
                   </div>
                   <div className="mb-6">
                     <p className="text-gray-500 text-sm font-semibold uppercase">Created</p>
@@ -291,13 +319,6 @@ export default function RequestDetail() {
 
                 {/* Right Column */}
                 <div>
-                  <div className="mb-6">
-                    <p className="text-gray-500 text-sm font-semibold uppercase">Location</p>
-                    <p className="text-gray-800 text-lg">
-                      {request.location_city || 'Not specified'}
-                      {request.location_detail && ` - ${request.location_detail}`}
-                    </p>
-                  </div>
                   <div className="mb-6">
                     <p className="text-gray-500 text-sm font-semibold uppercase">Requested By</p>
                     <p className="text-gray-800 text-lg">
@@ -377,22 +398,7 @@ export default function RequestDetail() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Category</label>
-                  <select
-                    name="category"
-                    value={formData.category || ''}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="">Select category</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Service Type</label>
+                  <label className="block text-gray-700 font-semibold mb-2">Service Type *</label>
                   <select
                     name="service_type"
                     value={formData.service_type || ''}
@@ -409,52 +415,29 @@ export default function RequestDetail() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Priority</label>
-                  <select
-                    name="priority"
-                    value={formData.priority || 'MEDIUM'}
+                  <label className="block text-gray-700 font-semibold mb-2">Region *</label>
+                  <input
+                    type="text"
+                    name="region"
+                    value={formData.region || ''}
                     onChange={handleChange}
+                    placeholder="e.g. Hougang, Sengkang, Bugis, Clementi"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
+                    required
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-gray-700 font-semibold mb-2">Location City</label>
+                  <label className="block text-gray-700 font-semibold mb-2">Requested By Date *</label>
                   <input
-                    type="text"
-                    name="location_city"
-                    value={formData.location_city || ''}
+                    type="date"
+                    name="requested_by_date"
+                    value={formData.requested_by_date || ''}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    required
                   />
                 </div>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-gray-700 font-semibold mb-2">Location Details</label>
-                <input
-                  type="text"
-                  name="location_detail"
-                  value={formData.location_detail || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
-              </div>
-
-              <div className="mb-8">
-                <label className="block text-gray-700 font-semibold mb-2">Requested By Date</label>
-                <input
-                  type="date"
-                  name="requested_by_date"
-                  value={formData.requested_by_date || ''}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
-                />
               </div>
 
               <div className="flex gap-4">

@@ -23,7 +23,8 @@ for username, password in plain_passwords.items():
         
         if user.data:
             user_id = user.data[0]['id']
-            hashed = generate_password_hash(password)
+            # Use pbkdf2:sha256 to avoid requiring cryptography library
+            hashed = generate_password_hash(password, method='pbkdf2:sha256')
             
             # Update with hashed password
             supabase.table('users').update({

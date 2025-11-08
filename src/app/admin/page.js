@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../components/Header';
 import Alert from '../components/Alert';
+import { useToast } from '../components/ToastProvider';
 
 export default function UserAdminDashboard() {
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function UserAdminDashboard() {
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState('users'); // users, profiles
   const [searchTab, setSearchTab] = useState('view'); // view, manage (sub-tabs for users tab)
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +48,8 @@ export default function UserAdminDashboard() {
   const [editProfileForm, setEditProfileForm] = useState({
     role_name: '',
     role_code: '',
-    description: ''
+    description: '',
+    dashboard_route: ''
   });
 
   const [roles, setRoles] = useState([]);
@@ -55,16 +57,15 @@ export default function UserAdminDashboard() {
   // Get token from localStorage
   const getToken = () => localStorage.getItem('token');
 
-  // Auto-dismiss success/error messages after 3 seconds
+  // Auto-dismiss error messages after 3 seconds (successes use global toast)
   useEffect(() => {
-    if (success || error) {
+    if (error) {
       const timer = setTimeout(() => {
-        setSuccess('');
         setError('');
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [success, error]);
+  }, [error]);
 
   // Fetch users on component mount
   useEffect(() => {
@@ -88,7 +89,9 @@ export default function UserAdminDashboard() {
         setFilteredUsers(response.data.data);
       }
     } catch (err) {
-      setError('Failed to fetch users');
+      const msg = 'Failed to fetch users';
+      setError(msg);
+      toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -114,7 +117,6 @@ export default function UserAdminDashboard() {
   const handleCreateUser = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
@@ -126,13 +128,15 @@ export default function UserAdminDashboard() {
       });
       
       if (response.data.success) {
-        setSuccess('User created successfully');
+          toast.success('User created successfully');
         setCreateForm({username: '', password: '', email: '', full_name: '', role_id: ''});
         setShowCreateModal(false);
         await fetchUsers();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create user');
+        const msg = err.response?.data?.message || 'Failed to create user';
+        setError(msg);
+        toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -168,12 +172,18 @@ export default function UserAdminDashboard() {
       });
 
       if (response.data.success) {
-        setSuccess('User updated successfully');
+        toast.success('User updated successfully');
         setEditingUser(null);
         setTimeout(() => fetchUsers(), 1000);
+      } else {
+        const msg = response.data.message || 'Failed to update user';
+        setError(msg);
+        toast.error(msg);
       }
     } catch (err) {
-      setError('Failed to update user');
+      const msg = err.response?.data?.message || 'Failed to update user';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -188,7 +198,7 @@ export default function UserAdminDashboard() {
       user.id === userId ? {...user, is_active: false} : user
     ));
     
-    setSuccess('User suspended successfully');
+    toast.success('User suspended successfully');
     
     // Background API call - don't reload on success or failure
     try {
@@ -199,7 +209,9 @@ export default function UserAdminDashboard() {
       });
     } catch (err) {
       // If API fails, revert the optimistic update
-      setError('Failed to suspend user');
+      const msg = 'Failed to suspend user';
+      setError(msg);
+      toast.error(msg);
       fetchUsers(); // Revert to original state
     }
   };
@@ -213,7 +225,7 @@ export default function UserAdminDashboard() {
       user.id === userId ? {...user, is_active: true} : user
     ));
     
-    setSuccess('User activated successfully');
+    toast.success('User activated successfully');
     
     // Background API call - don't reload on success or failure
     try {
@@ -224,7 +236,9 @@ export default function UserAdminDashboard() {
       });
     } catch (err) {
       // If API fails, revert the optimistic update
-      setError('Failed to activate user');
+      const msg = 'Failed to activate user';
+      setError(msg);
+      toast.error(msg);
       fetchUsers(); // Revert to original state
     }
   };
@@ -251,7 +265,9 @@ export default function UserAdminDashboard() {
         setFilteredProfiles(response.data.data);
       }
     } catch (err) {
-      setError('Failed to fetch profiles');
+      const msg = 'Failed to fetch profiles';
+      setError(msg);
+      toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -261,7 +277,6 @@ export default function UserAdminDashboard() {
   const handleCreateProfile = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
 
     try {
@@ -272,13 +287,15 @@ export default function UserAdminDashboard() {
       });
       
       if (response.data.success) {
-        setSuccess('Profile created successfully');
+        toast.success('Profile created successfully');
         setProfileForm({ role_name: '', role_code: '', description: '' });
         setShowCreateProfileModal(false);
         await fetchProfiles();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to create profile');
+      const msg = err.response?.data?.message || 'Failed to create profile';
+      setError(msg);
+      toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -288,7 +305,6 @@ export default function UserAdminDashboard() {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
     setLoading(true);
     try {
       const response = await axios.put(
@@ -302,12 +318,14 @@ export default function UserAdminDashboard() {
       );
       
       if (response.data.success) {
-        setSuccess('Profile updated successfully');
+        toast.success('Profile updated successfully');
         setEditingProfile(null);
         await fetchProfiles();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update profile');
+      const msg = err.response?.data?.message || 'Failed to update profile';
+      setError(msg);
+      toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -328,7 +346,6 @@ export default function UserAdminDashboard() {
     
     setLoading(true);
     setError('');
-    setSuccess('');
     try {
       // Delete from backend (cascading happens in backend)
       const response = await axios.delete(`http://localhost:5000/api/userProfile/${profileId}/delete`, {
@@ -343,13 +360,15 @@ export default function UserAdminDashboard() {
         await fetchProfiles();
         
         if (usersWithThisProfile.length > 0) {
-          setSuccess(`Profile deleted successfully. ${usersWithThisProfile.length} associated user account(s) were also deleted.`);
+          toast.success(`Profile deleted successfully. ${usersWithThisProfile.length} associated user account(s) were also deleted.`);
         } else {
-          setSuccess('Profile deleted successfully');
+          toast.success('Profile deleted successfully');
         }
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to delete profile');
+      const msg = err.response?.data?.message || 'Failed to delete profile';
+      setError(msg);
+      toast.error(msg);
       console.error(err);
     } finally {
       setLoading(false);
@@ -375,8 +394,8 @@ export default function UserAdminDashboard() {
       <Header title="User Admin Dashboard" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <Alert type="error" message={error} />
-        <Alert type="success" message={success} />
+  <Alert type="error" message={error} />
+  {/* success messages are shown via global toast */}
 
         {/* Main Tabs */}
         <div className="mb-8 border-b border-gray-200">
@@ -605,7 +624,8 @@ export default function UserAdminDashboard() {
                                   setEditProfileForm({
                                     role_name: profile.role_name,
                                     role_code: profile.role_code,
-                                    description: profile.description
+                                    description: profile.description,
+                                    dashboard_route: profile.dashboard_route
                                   });
                                 }}
                                 className="text-blue-600 hover:text-blue-900"
@@ -878,6 +898,8 @@ export default function UserAdminDashboard() {
                     rows="3"
                   />
                 </div>
+                {/* Dashboard Route is hidden but maintained in state for API */}
+                <input type="hidden" value={editProfileForm.dashboard_route} />
                 <div className="flex gap-3">
                   <button
                     type="submit"

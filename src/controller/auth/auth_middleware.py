@@ -26,15 +26,19 @@ def require_role(*allowed_roles):
 
             role = Role.get_role_by_id(user['role_id'])
             if not role:
+                print(f"[AUTH] Role not found for role_id: {user.get('role_id')}")
                 return jsonify({
                     'success': False,
                     'message': 'User role not found'
                 }), 403
 
+            print(f"[AUTH] User role: {role.get('role_name')}, Allowed roles: {allowed_roles}")
+            
             if role['role_name'] not in allowed_roles:
+                print(f"[AUTH] Access denied - '{role['role_name']}' not in {allowed_roles}")
                 return jsonify({
                     'success': False,
-                    'message': 'Access denied'
+                    'message': f'You do not have permission to view requests'
                 }), 403
 
             return f(*args, **kwargs)

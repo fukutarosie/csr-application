@@ -2,7 +2,23 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 import jwt
 from werkzeug.security import generate_password_hash, check_password_hash
-from .supabase_config import get_supabase, SUPABASE_KEY
+
+# Use pbkdf2:sha256 method which doesn't require cryptography library
+def hash_password(password):
+    """Hash password using pbkdf2:sha256"""
+    return generate_password_hash(password, method='pbkdf2:sha256')
+
+def verify_password(stored_hash, password):
+    """Verify password against stored hash - supports both scrypt and pbkdf2"""
+    try:
+        return check_password_hash(stored_hash, password)
+    except ValueError as e:
+        if 'unsupported hash type' in str(e):
+            # If scrypt hash and cryptography not installed, return error message
+            print(f"Error: Password uses scrypt hash but cryptography library not installed")
+            return False
+        raise
+from .supabase_config import get_supabase, SUPABASE_KEY, execute_with_retry
 
 class User:
     @staticmethod
@@ -27,7 +43,7 @@ class User:
                 return None
             
             # Step 2: Verify password
-            if not check_password_hash(user['password'], password):
+            if not verify_password(user['password'], password):
                 return None
             
             # Step 3: Check if user account is active
@@ -85,7 +101,7 @@ class User:
             # Prepare payload
             user_data = {
                 "username": username,
-                "password": generate_password_hash(password),
+                "password": hash_password(password),
                 "email": email,
                 "full_name": full_name,
                 "role_id": role_id,
@@ -131,26 +147,32 @@ class User:
 
     @staticmethod
     def get_user_by_username(username: str) -> Optional[Dict]:
-        """Get user by username"""
+        """Get user by username with retry logic for connection issues"""
         supabase = get_supabase()
         
         try:
-            result = supabase.table('users').select("*").eq('username', username).execute()
+            # Use retry logic for the query
+            result = execute_with_retry(
+                lambda: supabase.table('users').select("*").eq('username', username).execute()
+            )
             return result.data[0] if result.data else None
         except Exception as e:
-            print(f"Error getting user: {str(e)}")
+            print(f"Error getting user by username '{username}': {str(e)}")
             return None
 
     @staticmethod
     def get_user_by_email(email: str) -> Optional[Dict]:
-        """Get user by email"""
+        """Get user by email with retry logic for connection issues"""
         supabase = get_supabase()
         
         try:
-            result = supabase.table('users').select("*").eq('email', email).execute()
+            # Use retry logic for the query
+            result = execute_with_retry(
+                lambda: supabase.table('users').select("*").eq('email', email).execute()
+            )
             return result.data[0] if result.data else None
         except Exception as e:
-            print(f"Error getting user by email: {str(e)}")
+            print(f"Error getting user by email '{email}': {str(e)}")
             return None
 
     @staticmethod
@@ -160,7 +182,7 @@ class User:
         if not user:
             return False, None
             
-        if not check_password_hash(user['password'], password):
+        if not verify_password(user['password'], password):
             return False, None
             
         if not user['is_active']:
@@ -182,10 +204,20 @@ class User:
         try:
             # If password is being updated, hash it
             if 'password' in updates:
-                updates['password'] = generate_password_hash(updates['password'])
+                updates['password'] = hash_password(updates['password'])
                 
             result = supabase.table('users').update(updates).eq('id', user_id).execute()
-            return result.data[0] if result.data else None
+            
+            # If update was successful, return the updated user
+            if result.data and len(result.data) > 0:
+                return result.data[0]
+            
+            # If no data returned, verify the user still exists and return it
+            user = User.get_user_by_id(user_id)
+            if user:
+                return user
+            
+            return None
         except Exception as e:
             print(f"Error updating user: {str(e)}")
             return None
@@ -216,6 +248,26 @@ class User:
         return User.update_user(user_id, {"is_active": True})
 
     @staticmethod
+    def delete_user(user_id: int) -> bool:
+        """
+        Permanently delete a user account
+        
+        Args:
+            user_id: ID of the user to delete
+            
+        Returns:
+            True if deletion successful, False otherwise
+        """
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('users').delete().eq('id', user_id).execute()
+            return result.data is not None and len(result.data) > 0
+        except Exception as e:
+            print(f"Error deleting user: {str(e)}")
+            return False
+
+    @staticmethod
     def create_session_token(user_id: int) -> str:
         """Create a new session token for a user"""
         payload = {
@@ -232,11 +284,25 @@ class User:
             payload = jwt.decode(token, SUPABASE_KEY, algorithms=['HS256'])
             user_id = payload['user_id']
             
-            # Get user from database
+            # Get user from database with role information
             supabase = get_supabase()
-            result = supabase.table('users').select("*").eq('id', user_id).execute()
+            result = supabase.table('users').select(
+                "*",
+                "roles(id, role_name, role_code, dashboard_route)"
+            ).eq('id', user_id).execute()
             
-            return result.data[0] if result.data else None
+            if result.data:
+                user_data = result.data[0]
+                # Flatten role data for easier access
+                if user_data.get('roles'):
+                    user_data['role'] = {
+                        'id': user_data['roles']['id'],
+                        'name': user_data['roles']['role_name'],
+                        'code': user_data['roles']['role_code'],
+                        'dashboard_route': user_data['roles'].get('dashboard_route', '/')
+                    }
+                return user_data
+            return None
             
         except jwt.ExpiredSignatureError:
             return None

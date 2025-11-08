@@ -1,0 +1,128 @@
+"""CreateNewPINRequestController - Handles PIN user request creation (Control Layer)"""
+
+from src.entity.request import Request
+from src.entity import User
+from src.utils.image_upload import save_base64_image
+
+class CreateNewPINRequestController:
+    @staticmethod
+    def create_new_request(auth_token, data):
+        """
+        Create a new request
+        
+        Expected data:
+        {
+            "title": "Need grocery shopping help",
+            "description": "Heavy groceries, need help carrying",
+            "service_type": "Grocery Shopping",
+            "region": "Hougang",
+            "requested_by_date": "2025-12-31",
+            "image": "data:image/jpeg;base64,/9j/4AAQ..." (required)
+        }
+        
+        All fields are REQUIRED.
+        
+        Returns:
+        (response_dict, status_code)
+        """
+        try:
+            # Get authenticated user from token
+            user_data = User.verify_session_token(auth_token)
+            if not user_data:
+                return ({'success': False, 'message': 'Unauthorized'}, 401)
+            
+            pin_user_id = user_data['id']
+            
+            # Validate required fields
+            if not data:
+                return ({
+                    'success': False,
+                    'message': 'No data provided'
+                }, 400)
+            
+            # Validate title
+            title = data.get('title', '').strip()
+            if not title or len(title) < 5:
+                return ({
+                    'success': False,
+                    'message': 'Title is required (minimum 5 characters)'
+                }, 400)
+            
+            # Validate description
+            description = data.get('description', '').strip()
+            if not description or len(description) < 10:
+                return ({
+                    'success': False,
+                    'message': 'Description is required (minimum 10 characters)'
+                }, 400)
+            
+            # Validate service_type (now required)
+            service_type = data.get('service_type', '').strip()
+            if not service_type:
+                return ({
+                    'success': False,
+                    'message': 'Service type is required'
+                }, 400)
+            
+            # Validate region (now required)
+            region = data.get('region', '').strip()
+            if not region:
+                return ({
+                    'success': False,
+                    'message': 'Region is required'
+                }, 400)
+            
+            # Validate requested_by_date (now required)
+            requested_by_date = data.get('requested_by_date', '').strip()
+            if not requested_by_date:
+                return ({
+                    'success': False,
+                    'message': 'Requested by date is required'
+                }, 400)
+            
+            # Handle image upload (now required)
+            image_url = None
+            image_data = data.get('image', '').strip()
+            if not image_data:
+                return ({
+                    'success': False,
+                    'message': 'Image is required'
+                }, 400)
+            
+            success, result, error_msg = save_base64_image(image_data, title)
+            if not success:
+                return ({
+                    'success': False,
+                    'message': f'Image upload failed: {error_msg}'
+                }, 400)
+            image_url = result
+            
+            # Call entity layer
+            new_request = Request.create_request(
+                pin_user_id=pin_user_id,
+                title=title,
+                description=description,
+                service_type=service_type,
+                region=region,
+                requested_by_date=requested_by_date,
+                image_url=image_url
+            )
+            
+            if not new_request:
+                return ({
+                    'success': False,
+                    'message': 'Failed to create request. Invalid service type.'
+                }, 400)
+            
+            return ({
+                'success': True,
+                'data': new_request,
+                'message': 'Request created successfully'
+            }, 201)
+            
+        except Exception as e:
+            print(f"Error creating request: {str(e)}")
+            return ({
+                'success': False,
+                'message': 'Internal server error'
+            }, 500)
