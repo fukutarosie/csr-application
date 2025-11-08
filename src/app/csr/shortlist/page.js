@@ -18,6 +18,7 @@ export default function MyShortlist() {
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [dateError, setDateError] = useState('');
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState({ status: '', notes: '', volunteered_hours: '' });
 
@@ -33,7 +34,7 @@ export default function MyShortlist() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'CSR Rep') {
+    if (parsedUser.role.role_name !== 'CSR Rep') {
       router.push('/');
       return;
     }
@@ -75,7 +76,6 @@ export default function MyShortlist() {
       if (actualData && actualData.success) {
         const items = actualData.data || [];
         setShortlist(items);
-        toast.success(`Loaded ${items.length} shortlist items`);
       } else {
         toast.error(actualData?.message || 'Failed to load shortlist');
       }
@@ -94,10 +94,22 @@ export default function MyShortlist() {
         { headers: { 'Authorization': `Bearer ${getToken()}` } }
       );
 
-      if (response.data.success) {
+      // Handle responses that might be double-wrapped (array)
+      const responseData = Array.isArray(response.data) ? response.data[0] : response.data;
+      const wasRemoved = responseData?.success ?? (response.status === 200 || response.status === 204);
+
+      if (wasRemoved) {
         toast.success('Removed from shortlist successfully');
+        // Optimistically remove from local state for instant UI feedback
+        setShortlist((prev) => prev.filter((item) => item.id !== shortlistId));
+        // Close edit mode if the current item was being edited
+        setEditingItem((prev) => (prev === shortlistId ? null : prev));
+        // Refresh shortlist in background to ensure data consistency
         fetchShortlist();
+        return;
       }
+
+      toast.error(responseData?.message || 'Failed to remove from shortlist');
     } catch (err) {
       console.error('Failed to remove:', err);
       toast.error('Failed to remove from shortlist');
@@ -189,6 +201,31 @@ export default function MyShortlist() {
     setSearchServiceType('');
     setStartDate('');
     setEndDate('');
+    setDateError('');
+  };
+
+  const handleStartDateChange = (e) => {
+    const newStartDate = e.target.value;
+    setStartDate(newStartDate);
+    
+    // Validate if end date is set and is before start date
+    if (endDate && newStartDate && new Date(newStartDate) > new Date(endDate)) {
+      setDateError('From Date cannot be after To Date');
+    } else {
+      setDateError('');
+    }
+  };
+
+  const handleEndDateChange = (e) => {
+    const newEndDate = e.target.value;
+    setEndDate(newEndDate);
+    
+    // Validate if start date is set and end date is before start date
+    if (startDate && newEndDate && new Date(startDate) > new Date(newEndDate)) {
+      setDateError('To Date cannot be before From Date');
+    } else {
+      setDateError('');
+    }
   };
 
   useEffect(() => {
@@ -229,6 +266,19 @@ export default function MyShortlist() {
       {/* Global toast notifications will appear top-right via ToastProvider */}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Back to Dashboard Button */}
+        <div className="mb-6">
+          <button
+            onClick={() => router.push('/csr')}
+            className="flex items-center text-purple-600 hover:text-purple-800 font-semibold transition"
+          >
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Dashboard
+          </button>
+        </div>
+
         {/* Filter Tabs */}
         <div className="bg-white rounded-lg shadow mb-6">
           <div className="flex border-b">
@@ -293,8 +343,8 @@ export default function MyShortlist() {
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                onChange={handleStartDateChange}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${dateError ? 'border-red-500 focus:ring-red-500' : 'focus:ring-purple-500'}`}
               />
             </div>
             <div>
@@ -302,11 +352,19 @@ export default function MyShortlist() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                onChange={handleEndDateChange}
+                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${dateError ? 'border-red-500 focus:ring-red-500' : 'focus:ring-purple-500'}`}
               />
             </div>
           </div>
+          
+          {/* Date Error Message */}
+          {dateError && (
+            <div className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded">
+              <p className="text-red-700 text-sm font-medium">⚠️ {dateError}</p>
+            </div>
+          )}
+          
           {(searchServiceType || startDate || endDate) && (
             <div className="mt-3 flex items-center justify-between">
               <p className="text-sm text-gray-600">
@@ -344,7 +402,14 @@ export default function MyShortlist() {
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">{item.requests?.title}</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-4">
+                      <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          <strong>Note:</strong> You can only accept opportunities and track your progress. 
+                          The PIN user will mark the request as completed after verifying your work.
+                        </p>
+                      </div>
+
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                         <select
@@ -354,32 +419,17 @@ export default function MyShortlist() {
                         >
                           <option value="SHORTLISTED">Shortlisted</option>
                           <option value="IN_PROGRESS">In Progress</option>
-                          <option value="COMPLETED">Completed</option>
                         </select>
                       </div>
 
-                      {editForm.status === 'COMPLETED' && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Hours Volunteered</label>
-                          <input
-                            type="number"
-                            step="0.5"
-                            value={editForm.volunteered_hours}
-                            onChange={(e) => setEditForm({ ...editForm, volunteered_hours: e.target.value })}
-                            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                            placeholder="0.0"
-                          />
-                        </div>
-                      )}
-
-                      <div className="md:col-span-2">
+                      <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
                         <textarea
                           value={editForm.notes}
                           onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
                           className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                          rows="2"
-                          placeholder="Add notes about your volunteering..."
+                          rows="3"
+                          placeholder="Add notes about your volunteering progress..."
                         />
                       </div>
                     </div>
@@ -407,22 +457,18 @@ export default function MyShortlist() {
                         <h3 className="text-lg font-semibold text-gray-900 mb-2">{item.requests?.title}</h3>
                         <p className="text-sm text-gray-600 mb-3">{item.requests?.description}</p>
                         
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium text-gray-700">Category:</span>
-                            <p className="text-gray-600">{item.requests?.category}</p>
-                          </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                           <div>
                             <span className="font-medium text-gray-700">Service Type:</span>
                             <p className="text-gray-600">{item.requests?.service_type}</p>
                           </div>
                           <div>
-                            <span className="font-medium text-gray-700">Priority:</span>
-                            <p className="text-gray-600">{item.requests?.priority}</p>
+                            <span className="font-medium text-gray-700">Region:</span>
+                            <p className="text-gray-600">{item.requests?.region}</p>
                           </div>
                           <div>
-                            <span className="font-medium text-gray-700">Location:</span>
-                            <p className="text-gray-600">{item.requests?.location_city}</p>
+                            <span className="font-medium text-gray-700">Status:</span>
+                            <p className="text-gray-600">{item.requests?.status}</p>
                           </div>
                         </div>
 
@@ -449,25 +495,40 @@ export default function MyShortlist() {
                       </div>
                     </div>
 
-                    <div className="flex gap-2 pt-4 border-t">
-                      <button
-                        onClick={() => handleEditClick(item)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                      >
-                        ✏️ Update Status
-                      </button>
-                      <button
-                        onClick={() => handleTakeOpportunity(item.id)}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                      >
-                        🚀 Take opportunity
-                      </button>
-                      <button
-                        onClick={() => handleRemove(item.id)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-                      >
-                        🗑️ Remove
-                      </button>
+                    <div className="pt-4 border-t">
+                      {item.status === 'COMPLETED' ? (
+                        <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                          <p className="text-sm text-green-800">
+                            ✅ <strong>Completed!</strong> This opportunity has been marked as completed by the PIN user. 
+                            Thank you for your service!
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          {item.status === 'SHORTLISTED' && (
+                            <button
+                              onClick={() => handleTakeOpportunity(item.id)}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                            >
+                              🚀 Accept Opportunity
+                            </button>
+                          )}
+                          {item.status === 'IN_PROGRESS' && (
+                            <button
+                              onClick={() => handleEditClick(item)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            >
+                              ✏️ Update Notes
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleRemove(item.id)}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                          >
+                            🗑️ Remove
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

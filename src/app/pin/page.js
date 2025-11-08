@@ -34,7 +34,7 @@ export default function PINDashboard() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'PIN') {
+    if (parsedUser.role.role_name !== 'PIN') {
       router.push('/');
       return;
     }
@@ -314,21 +314,42 @@ export default function PINDashboard() {
                 )
               }
             >
-              {filteredRequests.map((request) => (
+              {filteredRequests.map((request) => {
+                const assignmentStatus = request.assignment_status;
+                const assignedVolunteer = request.active_assignment?.csr_user?.full_name;
+                const canMarkCompleted = assignmentStatus === 'IN_PROGRESS';
+                return (
                 <RequestCard
                   key={request.id}
                   request={request}
                   onClick={() => router.push(`/pin/request/${request.id}`)}
                   theme="blue"
                   extraInfo={
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center text-gray-600">
-                        <span className="mr-1">👁️</span>
-                        <span>{request.view_count || 0} views</span>
-                      </div>
-                      <div className="flex items-center text-gray-600">
-                        <span className="mr-1">⭐</span>
-                        <span>{request.shortlist_count || 0} saved</span>
+                    <div className="space-y-2">
+                      {assignmentStatus ? (
+                        <div className="flex items-center text-sm font-medium bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg px-3 py-2">
+                          <span className="mr-2">🤝</span>
+                          <span>
+                            {assignmentStatus === 'IN_PROGRESS'
+                              ? `In progress with ${assignedVolunteer || 'CSR Volunteer'}`
+                              : `Completed by ${assignedVolunteer || 'CSR Volunteer'}`}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                          <span className="mr-2">✅</span>
+                          <span>Awaiting CSR assignment</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <span className="mr-1">👁️</span>
+                          <span>{request.view_count || 0} views</span>
+                        </div>
+                        <div className="flex items-center">
+                          <span className="mr-1">⭐</span>
+                          <span>{request.shortlist_count || 0} saved</span>
+                        </div>
                       </div>
                     </div>
                   }
@@ -350,19 +371,29 @@ export default function PINDashboard() {
                             e.stopPropagation();
                             handleMarkAsCompleted(request.id);
                           }}
-                          disabled={completingRequest === request.id}
-                          className={`w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center gap-2 ${
-                            completingRequest === request.id ? 'opacity-50 cursor-not-allowed' : ''
+                          disabled={completingRequest === request.id || !canMarkCompleted}
+                          className={`w-full px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 ${
+                            completingRequest === request.id
+                              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                              : canMarkCompleted
+                                ? 'bg-green-600 text-white hover:bg-green-700 transition-colors'
+                                : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                           }`}
                         >
                           <span>✓</span>
-                          <span>{completingRequest === request.id ? 'Processing...' : 'Mark as Completed'}</span>
+                          <span>
+                            {completingRequest === request.id
+                              ? 'Processing...'
+                              : canMarkCompleted
+                                ? 'Mark as Completed'
+                                : 'Waiting for CSR Progress'}
+                          </span>
                         </button>
                       )}
                     </div>
                   }
                 />
-              ))}
+              );})}
             </RequestCardGrid>
           </div>
         </div>

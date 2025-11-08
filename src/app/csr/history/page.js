@@ -28,7 +28,7 @@ export default function CSRHistory() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'CSR Rep') {
+    if (parsedUser.role.role_name !== 'CSR Rep') {
       router.push('/');
       return;
     }

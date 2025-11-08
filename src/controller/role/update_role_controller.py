@@ -1,42 +1,56 @@
+"""
+Update Role Controller - TRUE OOP Implementation
+"""
+
+from typing import Dict, Tuple
 from src.entity import Role
 
+
 class UpdateRoleController:
-    """Controller for updating an existing role"""
+    """
+    Update Role Controller - TRUE OOP
     
-    @staticmethod
-    def update_role(role_id, data):
-        """Update an existing role"""
+    Usage:
+        controller = UpdateRoleController(role_id, data)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, role_id: int, data: Dict):
+        """Initialize controller"""
+        self.role_id = role_id
+        self.data = data
+        self.role = None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute role update"""
         try:
-            # Check if role exists
-            role = Role.get_role_by_id(role_id)
-            if not role:
+            # Load Role object
+            self.role = Role.find(self.role_id)  # Use factory method
+            if not self.role:
+                return ({'success': False, 'message': 'Role not found'}, 404)
+            
+            # Update role attributes
+            if 'role_name' in self.data:
+                self.role.role_name = self.data['role_name']
+            if 'role_code' in self.data:
+                self.role.role_code = self.data['role_code']
+            if 'description' in self.data:
+                self.role.description = self.data['description']
+            if 'dashboard_route' in self.data:
+                self.role.dashboard_route = self.data['dashboard_route']
+            
+            # Save (instance method)
+            if self.role.update():
                 return ({
-                    'success': False,
-                    'message': 'Role not found'
-                }, 404)
+                    'success': True,
+                    'data': self.role.to_dict(),
+                    'message': 'Role updated successfully'
+                }, 200)
             
-            # Update role with new data or keep existing values
-            updated_role = Role.update_role(
-                role_id=role_id,
-                role_name=data.get('role_name', role['role_name']),
-                role_code=data.get('role_code', role['role_code']),
-                description=data.get('description', role['description']),
-                dashboard_route=data.get('dashboard_route', role.get('dashboard_route', '/'))
-            )
-            
-            if not updated_role:
-                return ({
-                    'success': False,
-                    'message': 'Failed to update role'
-                }, 500)
-            
-            return ({
-                'success': True,
-                'data': updated_role,
-                'message': 'Role updated successfully'
-            }, 200)
-        except Exception as e:
             return ({
                 'success': False,
-                'message': str(e)
+                'message': 'Failed to update role'
             }, 500)
+            
+        except Exception as e:
+            return ({'success': False, 'message': str(e)}, 500)

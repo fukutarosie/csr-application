@@ -66,8 +66,11 @@ export default function PINDashboard() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      if (response.data.success) {
-        setServiceTypes(response.data.data || []);
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+
+      if (actualData && actualData.success) {
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Error fetching service types:', err);
@@ -186,14 +189,6 @@ export default function PINDashboard() {
       <Header title="PIN Dashboard - Manage Requests" subtitle="Manage your service requests" />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Success Alert for New Request */}
-        {showSuccessAlert && (
-          <Alert 
-            type="success" 
-            message="✅ Request created successfully!" 
-          />
-        )}
-
         {/* Action Button */}
         <div className="flex justify-end mb-6">
           <Link href="/pin/request/new">

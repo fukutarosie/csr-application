@@ -1,19 +1,30 @@
+"""
+Get All Roles Controller - TRUE OOP Implementation
+"""
+
+from typing import Dict, Tuple
 from src.entity import Role
 
+
 class GetAllRolesController:
-    """Controller for fetching all roles (admin only)"""
+    """
+    Get All Roles Controller - TRUE OOP
     
-    @staticmethod
-    def get_all_roles():
-        """Get all roles - Protected endpoint for admins"""
+    Usage:
+        controller = GetAllRolesController()
+        response, status = controller.execute()
+    """
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute roles retrieval"""
         try:
-            roles = Role.get_all_roles()
+            roles = Role.all()  # Use factory method
+            roles_data = [role.to_dict() for role in roles]
+            
             return ({
                 'success': True,
-                'data': roles
+                'data': roles_data
             }, 200)
+            
         except Exception as e:
-            return ({
-                'success': False,
-                'message': str(e)
-            }, 500)
+            return ({'success': False, 'message': str(e)}, 500)

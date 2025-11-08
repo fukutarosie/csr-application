@@ -1,48 +1,47 @@
 """
-Increment View Count Controller - Track CSR views (Control Layer)
-Supports US-27: PIN views number of times request has been viewed
+Increment View Count Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.request import Request
 from src.utils.helpers import ResponseHelpers
 
+
 class IncrementViewCountController:
     """
-    Increment view count when CSR views a request
-    Supports US-27 analytics tracking
+    Increment View Count Controller - TRUE OOP
+    
+    Usage:
+        controller = IncrementViewCountController(request_id)
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def increment_view(request_id):
-        """
-        Increment view count for a request
-        
-        Returns: (response_dict, status_code)
-        """
+    def __init__(self, request_id: int):
+        """Initialize controller"""
+        self.request_id = request_id
+        self.request = None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute view count increment"""
         try:
-            # Verify request exists
-            req = Request.get_request(request_id)
-            if not req:
+            # Load Request object
+            self.request = Request.find(self.request_id)
+            if not self.request:
                 return (ResponseHelpers.error_response('Request not found', 404), 404)
             
             # Only track views for ACTIVE requests
-            if req.get('status') != 'ACTIVE':
+            if self.request.status != Request.STATUS_ACTIVE:
                 return (ResponseHelpers.success_response(
                     message='View not tracked for non-active request'
                 ), 200)
             
-            # Call ENTITY layer to increment view count
-            success = Request.increment_view_count(request_id)
+            # Increment view count (instance method)
+            self.request.increment_view_count()
             
-            if success:
-                return (ResponseHelpers.success_response(
-                    message='View recorded successfully'
-                ), 200)
-            else:
-                return (ResponseHelpers.error_response('Failed to record view'), 500)
+            return (ResponseHelpers.success_response(
+                message='View recorded successfully'
+            ), 200)
             
         except Exception as e:
             print(f"[ERROR] Increment view count failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return (ResponseHelpers.error_response('Internal server error'), 500)

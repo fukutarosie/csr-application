@@ -1,23 +1,36 @@
 """
-Shortlist Entity Class - PIN/CSR System
-Handles all database operations for CSR shortlisting of PIN requests
-Part of the CONTROL/ENTITY layer (BCE Architecture)
-
-Methods:
-- add_to_shortlist() - Save/shortlist a request
-- remove_from_shortlist() - Remove from shortlist
-- search_shortlist() - Get CSR's shortlist with filters
-- update_shortlist_status() - Update shortlist status
-- get_shortlist_item() - Get specific shortlist entry
+Shortlist Entity Class - TRUE OOP Implementation
+Holds shortlist data in memory and performs operations on itself
 """
 
 from typing import Dict, List, Optional
 from datetime import datetime
-from .supabase_config import get_supabase
+from .supabase_config import get_supabase, execute_with_retry
 
 
 class Shortlist:
-    """Shortlist entity - handles CSR shortlisting of requests"""
+    """
+    Shortlist Entity - TRUE OOP Implementation
+    
+    This class implements proper OOP:
+    - Objects hold data in memory (instance variables)
+    - Instance methods do the actual work (not wrappers)
+    - Factory methods (class methods) for querying
+    - No static methods for business logic
+    
+    Usage:
+        # Create new shortlist entry
+        shortlist = Shortlist()
+        shortlist.csr_user_id = 42
+        shortlist.request_id = 10
+        shortlist.notes = 'Interested in this request'
+        shortlist.save()  # Instance method does the work
+        
+        # Load existing shortlist
+        shortlist = Shortlist.find(1)
+        shortlist.status = 'IN_PROGRESS'
+        shortlist.save()  # Updates database
+    """
     
     # Shortlist statuses
     STATUS_SHORTLISTED = 'SHORTLISTED'
@@ -27,420 +40,503 @@ class Shortlist:
     
     VALID_STATUSES = [STATUS_SHORTLISTED, STATUS_IN_PROGRESS, STATUS_COMPLETED, STATUS_DECLINED]
     
-    @staticmethod
-    def add_to_shortlist(
-        csr_user_id: int,
-        request_id: int,
-        notes: str = None
-    ) -> Optional[Dict]:
+    def __init__(self, shortlist_id: Optional[int] = None, shortlist_data: Optional[Dict] = None):
         """
-        Add a request to CSR's shortlist (save/bookmark for later)
+        Initialize a Shortlist instance
         
         Args:
-            csr_user_id: CSR user ID (must have CSR role)
-            request_id: Request ID to shortlist
-            notes: Optional notes from CSR
+            shortlist_id: Load existing shortlist item from database by ID
+            shortlist_data: Initialize with existing shortlist data
             
-        Returns:
-            Created shortlist entry dict, or None if failed
+        Example:
+            shortlist = Shortlist(shortlist_id=1)
+            shortlist = Shortlist(shortlist_data={...})
+            shortlist = Shortlist()  # Create new
         """
+        # Instance variables (object state - data in memory)
+        self.id: Optional[int] = None
+        self.csr_user_id: Optional[int] = None
+        self.request_id: Optional[int] = None
+        self.status: str = Shortlist.STATUS_SHORTLISTED
+        self.notes: Optional[str] = None
+        self.volunteered_hours: Optional[float] = None
+        self.completion_date: Optional[str] = None
+        self.feedback_from_pin: Optional[str] = None
+        self.shortlisted_at: Optional[str] = None
+        self.updated_at: Optional[str] = None
+        self.requests: Optional[Dict] = None  # Store joined request data
+        
+        # Load data if provided
+        if shortlist_id is not None:
+            self._load_from_id(shortlist_id)
+        elif shortlist_data is not None:
+            self._load_from_dict(shortlist_data)
+    
+    # ============================================================================
+    # PRIVATE METHODS (Internal use only)
+    # ============================================================================
+    
+    def _load_from_id(self, shortlist_id: int) -> None:
+        """Load shortlist data from database by ID (private method)"""
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('shortlist')
+            .select('*, requests(*)')
+            .eq('id', shortlist_id)
+            .execute()
+        )
+        if result and result.data:
+            self._load_from_dict(result.data[0])
+    
+    def _load_from_dict(self, data: Dict) -> None:
+        """Populate instance variables from dictionary (private method)"""
+        self.id = data.get('id')
+        self.csr_user_id = data.get('csr_user_id')
+        self.request_id = data.get('request_id')
+        self.status = data.get('status', Shortlist.STATUS_SHORTLISTED)
+        self.notes = data.get('notes')
+        self.volunteered_hours = data.get('volunteered_hours')
+        self.completion_date = data.get('completion_date')
+        self.feedback_from_pin = data.get('feedback_from_pin')
+        self.shortlisted_at = data.get('shortlisted_at')
+        self.updated_at = data.get('updated_at')
+        self.requests = data.get('requests')  # Store joined request data
+    
+    # ============================================================================
+    # VALIDATION METHODS (Instance methods)
+    # ============================================================================
+    
+    def validate(self) -> tuple[bool, List[str]]:
+        """
+        Validate shortlist object state
+        
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        errors = []
+        
+        if not self.csr_user_id:
+            errors.append('CSR user ID is required')
+        
+        if not self.request_id:
+            errors.append('Request ID is required')
+        
+        if self.status not in Shortlist.VALID_STATUSES:
+            errors.append(f'Invalid status: {self.status}')
+        
+        return len(errors) == 0, errors
+    
+    def check_duplicate(self) -> tuple[bool, Optional[str]]:
+        """
+        Check if this CSR user already shortlisted this request
+        
+        Returns:
+            Tuple of (is_unique, error_message)
+        """
+        if not self.csr_user_id or not self.request_id:
+            return True, None
+        
+        # Skip check if updating existing shortlist
+        if self.id:
+            return True, None
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('shortlist')
+            .select('id')
+            .eq('csr_user_id', self.csr_user_id)
+            .eq('request_id', self.request_id)
+            .execute()
+        )
+        
+        if result and result.data:
+            return False, 'Request already shortlisted by this user'
+        
+        return True, None
+    
+    def validate_request_active(self) -> tuple[bool, Optional[str]]:
+        """
+        Validate that the request is active
+        
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not self.request_id:
+            return False, 'Request ID is required'
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .select('id, status')
+            .eq('id', self.request_id)
+            .execute()
+        )
+        
+        if not result or not result.data:
+            return False, 'Request not found'
+        
+        if result.data[0]['status'] != 'ACTIVE':
+            return False, 'Request is not active'
+        
+        return True, None
+    
+    # ============================================================================
+    # CRUD METHODS (Instance methods - do the actual work)
+    # ============================================================================
+    
+    def save(self) -> bool:
+        """
+        Save shortlist to database (create or update)
+        Instance method that DOES THE ACTUAL WORK
+        
+        Returns:
+            True if successful
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        # Validate
+        is_valid, errors = self.validate()
+        if not is_valid:
+            raise ValueError('; '.join(errors))
+        
+        # Check for duplicates (only for new shortlist)
+        if not self.id:
+            is_unique, error = self.check_duplicate()
+            if not is_unique:
+                raise ValueError(error)
+            
+            # Validate request is active
+            is_active, error = self.validate_request_active()
+            if not is_active:
+                raise ValueError(error)
+        
         supabase = get_supabase()
         
-        try:
-            print(f"[DEBUG] add_to_shortlist - CSR User ID: {csr_user_id}, Request ID: {request_id}")
-            
-            # Validate CSR user exists and has CSR role
-            user = supabase.table('users').select('id, role_id').eq('id', csr_user_id).execute()
-            if not user.data:
-                print(f"[DEBUG] User {csr_user_id} not found")
-                return None  # User not found
-            
-            print(f"[DEBUG] User role_id: {user.data[0]['role_id']}")
-            
-            if user.data[0]['role_id'] != 3:  # CSR role_id = 3
-                print(f"[DEBUG] User {csr_user_id} is not CSR role (role_id={user.data[0]['role_id']})")
-                return None  # User is not CSR role
-            
-            # Validate request exists and is ACTIVE
-            request = supabase.table('requests').select('id, status').eq('id', request_id).execute()
-            if not request.data:
-                print(f"[DEBUG] Request {request_id} not found")
-                return None  # Request not found
-            
-            print(f"[DEBUG] Request status: {request.data[0]['status']}")
-            
-            if request.data[0]['status'] != 'ACTIVE':
-                print(f"[DEBUG] Request {request_id} is not ACTIVE (status={request.data[0]['status']})")
-                return None  # Can only shortlist ACTIVE requests
-            
-            # Check if already shortlisted (UNIQUE constraint will prevent duplicate)
-            existing = supabase.table('shortlist').select('id').eq('csr_user_id', csr_user_id).eq('request_id', request_id).execute()
-            if existing.data:
-                print(f"[DEBUG] Request {request_id} already shortlisted by CSR {csr_user_id}")
-                return None  # Already shortlisted
-            
-            # Prepare data
-            shortlist_data = {
-                'csr_user_id': csr_user_id,
-                'request_id': request_id,
-                'status': Shortlist.STATUS_SHORTLISTED,
-                'notes': notes,
-                'shortlisted_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
+        if self.id:
+            # Update existing shortlist
+            update_data = {
+                'status': self.status,
+                'notes': self.notes,
+                'volunteered_hours': self.volunteered_hours,
+                'completion_date': self.completion_date,
+                'feedback_from_pin': self.feedback_from_pin,
+                'updated_at': datetime.now().isoformat()
             }
             
-            print(f"[DEBUG] Inserting shortlist entry: {shortlist_data}")
+            result = execute_with_retry(
+                lambda: supabase.table('shortlist')
+                .update(update_data)
+                .eq('id', self.id)
+                .execute()
+            )
             
-            # Insert
-            result = supabase.table('shortlist').insert(shortlist_data).execute()
-            print(f"[DEBUG] Insert result: {result.data}")
+            if result and result.data:
+                self.updated_at = result.data[0]['updated_at']
+        else:
+            # Create new shortlist entry
+            insert_data = {
+                'csr_user_id': self.csr_user_id,
+                'request_id': self.request_id,
+                'status': self.status,
+                'notes': self.notes
+            }
             
-            # 🆕 INCREMENT shortlist_count in requests table (US-28)
-            if result.data:
+            result = execute_with_retry(
+                lambda: supabase.table('shortlist')
+                .insert(insert_data)
+                .execute()
+            )
+            
+            if result and result.data:
+                # Update object with new ID and timestamps
+                self.id = result.data[0]['id']
+                self.shortlisted_at = result.data[0]['shortlisted_at']
+                self.updated_at = result.data[0]['updated_at']
+                
+                # Increment shortlist_count in requests table
                 try:
-                    req = supabase.table('requests').select('shortlist_count').eq('id', request_id).execute()
-                    current_count = req.data[0].get('shortlist_count', 0) if req.data else 0
-                    
-                    supabase.table('requests').update({
-                        'shortlist_count': current_count + 1
-                    }).eq('id', request_id).execute()
-                    
-                    print(f"[DEBUG] Incremented shortlist_count for request {request_id} to {current_count + 1}")
-                except Exception as count_err:
-                    print(f"[WARNING] Failed to increment shortlist_count (non-critical): {str(count_err)}")
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            # Handle unique constraint error gracefully
-            if 'unique' in str(e).lower():
-                print(f"Request already shortlisted by this CSR")
-            else:
-                print(f"Error adding to shortlist: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return None
+                    from .request import Request
+                    request = Request.find(self.request_id)
+                    if request:
+                        request.increment_shortlist_count()
+                except Exception as e:
+                    print(f"[WARNING] Failed to increment shortlist count: {str(e)}")
+        
+        return True
     
-    @staticmethod
-    def remove_from_shortlist(
-        shortlist_id: int,
-        csr_user_id: int
-    ) -> bool:
+    def delete(self) -> bool:
         """
-        Remove a request from CSR's shortlist
+        Delete this shortlist entry from database
         
-        Args:
-            shortlist_id: Shortlist entry ID
-            csr_user_id: CSR user ID (must be the owner)
-            
         Returns:
-            True if removed, False if failed
+            True if successful
+            
+        Raises:
+            ValueError: If shortlist has no ID
         """
-        supabase = get_supabase()
+        if not self.id:
+            raise ValueError('Cannot delete shortlist without ID')
         
-        try:
-            # Verify ownership and get request_id
-            existing = supabase.table('shortlist').select('csr_user_id, request_id').eq('id', shortlist_id).execute()
-            if not existing.data:
-                return False  # Not found
-            
-            if existing.data[0]['csr_user_id'] != csr_user_id:
-                return False  # Not the owner
-            
-            # Store request_id for decrementing counter
-            request_id = existing.data[0]['request_id']
-            
-            # Delete
-            supabase.table('shortlist').delete().eq('id', shortlist_id).execute()
-            
-            # 🆕 DECREMENT shortlist_count in requests table (US-28)
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('shortlist')
+            .delete()
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        # Decrement shortlist_count in requests table
+        if result and result.data:
             try:
-                req = supabase.table('requests').select('shortlist_count').eq('id', request_id).execute()
-                current_count = req.data[0].get('shortlist_count', 0) if req.data else 0
-                
-                supabase.table('requests').update({
-                    'shortlist_count': max(0, current_count - 1)  # Prevent negative count
-                }).eq('id', request_id).execute()
-                
-                print(f"[DEBUG] Decremented shortlist_count for request {request_id} to {max(0, current_count - 1)}")
-            except Exception as count_err:
-                print(f"[WARNING] Failed to decrement shortlist_count (non-critical): {str(count_err)}")
-            
-            return True
-            
-        except Exception as e:
-            print(f"Error removing from shortlist: {str(e)}")
-            return False
+                from .request import Request
+                request = Request.find(self.request_id)
+                if request:
+                    request.decrement_shortlist_count()
+            except Exception as e:
+                print(f"[WARNING] Failed to decrement shortlist count: {str(e)}")
+        
+        return bool(result and result.data)
     
-    @staticmethod
-    def get_shortlist_item(shortlist_id: int) -> Optional[Dict]:
+    # ============================================================================
+    # STATUS METHODS (Instance methods)
+    # ============================================================================
+    
+    def mark_in_progress(self) -> bool:
+        """Mark this shortlist item as in progress"""
+        self.status = Shortlist.STATUS_IN_PROGRESS
+        return self.save()
+    
+    def mark_completed(self, volunteered_hours: float = None, feedback: str = None) -> bool:
         """
-        Get a specific shortlist entry
+        Mark this shortlist item as completed
         
         Args:
-            shortlist_id: Shortlist entry ID
+            volunteered_hours: Hours volunteered
+            feedback: Feedback from PIN user
             
         Returns:
-            Shortlist entry dict with request details, or None if not found
+            True if successful
         """
-        supabase = get_supabase()
-        
-        try:
-            result = supabase.table('shortlist').select(
-                "*",
-                "requests(id, title, description, category, service_type, priority, location_city, status)",
-                "users(id, username, full_name, email)"
-            ).eq('id', shortlist_id).execute()
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error getting shortlist item: {str(e)}")
+        self.status = Shortlist.STATUS_COMPLETED
+        self.completion_date = datetime.now().isoformat()
+        if volunteered_hours is not None:
+            self.volunteered_hours = volunteered_hours
+        if feedback:
+            self.feedback_from_pin = feedback
+        return self.save()
+    
+    # ============================================================================
+    # UTILITY METHODS (Instance methods)
+    # ============================================================================
+    
+    def to_dict(self) -> Dict:
+        """Convert instance to dictionary (for API responses)"""
+        return {
+            'id': self.id,
+            'csr_user_id': self.csr_user_id,
+            'request_id': self.request_id,
+            'status': self.status,
+            'notes': self.notes,
+            'volunteered_hours': self.volunteered_hours,
+            'completion_date': self.completion_date,
+            'feedback_from_pin': self.feedback_from_pin,
+            'shortlisted_at': self.shortlisted_at,
+            'updated_at': self.updated_at,
+            'requests': self.requests  # Include joined request data
+        }
+
+    def get_csr_user(self):
+        """Fetch the CSR user associated with this shortlist entry."""
+        if not self.csr_user_id:
             return None
-    
-    @staticmethod
-    def search_shortlist(
-        csr_user_id: int,
-        status: str = None,
-        service_type: str = None,
-        date_from: str = None,
-        date_to: str = None,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[Dict]:
-        """
-        Search CSR's shortlist with filters
-        
-        Args:
-            csr_user_id: CSR user ID
-            status: Filter by shortlist status (SHORTLISTED, IN_PROGRESS, COMPLETED, DECLINED)
-            service_type: Filter by service type
-            date_from: Filter shortlisted after date (ISO format)
-            date_to: Filter shortlisted before date (ISO format)
-            limit: Max results
-            offset: Pagination offset
-            
-        Returns:
-            List of shortlist entries with request details
-        """
-        supabase = get_supabase()
-        
+        from .user import User  # Local import to avoid circular dependency
         try:
-            query = supabase.table('shortlist').select(
-                "*",
-                "requests(*)",
-                "users(id, username, full_name, email)"
-            ).eq('csr_user_id', csr_user_id)
-            
-            # Apply filters
-            if status:
-                query = query.eq('status', status)
-            if service_type:
-                query = query.eq('requests.service_type', service_type)
-            if date_from:
-                query = query.gte('shortlisted_at', date_from)
-            if date_to:
-                query = query.lte('shortlisted_at', date_to)
-            
-            result = query.order('shortlisted_at', desc=True).range(offset, offset + limit).execute()
-            return result.data if result.data else []
-            
-        except Exception as e:
-            print(f"Error searching shortlist: {str(e)}")
-            return []
-    
-    @staticmethod
-    def update_shortlist_status(
-        shortlist_id: int,
-        csr_user_id: int,
-        new_status: str,
-        notes: str = None,
-        volunteered_hours: float = None
-    ) -> Optional[Dict]:
-        """
-        Update shortlist entry status
-        
-        Args:
-            shortlist_id: Shortlist entry ID
-            csr_user_id: CSR user ID (must be the owner)
-            new_status: New status (SHORTLISTED, IN_PROGRESS, COMPLETED, DECLINED)
-            notes: Updated notes from CSR
-            volunteered_hours: Hours spent (for COMPLETED status)
-            
-        Returns:
-            Updated shortlist entry dict, or None if failed
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Verify ownership
-            existing = supabase.table('shortlist').select('csr_user_id, status').eq('id', shortlist_id).execute()
-            if not existing.data:
-                return None  # Not found
-            
-            if existing.data[0]['csr_user_id'] != csr_user_id:
-                return None  # Not the owner
-            
-            # Validate new status
-            if new_status not in Shortlist.VALID_STATUSES:
-                return None
-            
-            # Prepare updates
-            updates = {
-                'status': new_status,
-                'updated_at': datetime.utcnow().isoformat()
+            return User.find(self.csr_user_id)
+        except Exception:
+            return None
+
+    def to_assignment_dict(self) -> Dict:
+        """Convert shortlist entry into assignment-focused dictionary with CSR info."""
+        data = self.to_dict()
+        csr_user = self.get_csr_user()
+        if csr_user:
+            data['csr_user'] = {
+                'id': csr_user.id,
+                'full_name': csr_user.full_name,
+                'email': csr_user.email,
             }
-            
-            # Add optional fields
-            if notes is not None:
-                updates['notes'] = notes
-            
-            if volunteered_hours is not None:
-                updates['volunteered_hours'] = volunteered_hours
-            
-            # Set completion_date if marked as COMPLETED
-            if new_status == Shortlist.STATUS_COMPLETED:
-                updates['completion_date'] = datetime.utcnow().isoformat()
-            
-            # Update
-            result = supabase.table('shortlist').update(updates).eq('id', shortlist_id).execute()
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error updating shortlist status: {str(e)}")
-            return None
+        return data
     
-    @staticmethod
-    def get_csr_shortlist_count(csr_user_id: int, status: str = None) -> int:
+    # ============================================================================
+    # MAGIC METHODS (OOP features)
+    # ============================================================================
+    
+    def __str__(self) -> str:
+        """String representation"""
+        return f"Shortlist(csr_user_id={self.csr_user_id}, request_id={self.request_id})"
+    
+    def __repr__(self) -> str:
+        """Developer-friendly representation"""
+        return f"Shortlist(id={self.id}, csr_user_id={self.csr_user_id}, request_id={self.request_id}, status='{self.status}')"
+    
+    def __eq__(self, other) -> bool:
+        """Equality comparison"""
+        if not isinstance(other, Shortlist):
+            return False
+        return self.id == other.id
+    
+    def __hash__(self) -> int:
+        """Make hashable"""
+        return hash(self.id) if self.id else hash(id(self))
+    
+    # ============================================================================
+    # FACTORY METHODS (Class methods that return Shortlist objects)
+    # ============================================================================
+    
+    @classmethod
+    def find(cls, shortlist_id: int) -> Optional['Shortlist']:
         """
-        Get count of shortlist entries for a CSR
+        Factory method: Find and return a Shortlist instance by ID
+        
+        Args:
+            shortlist_id: Shortlist ID to find
+            
+        Returns:
+            Shortlist object or None if not found
+        """
+        return cls(shortlist_id=shortlist_id) if shortlist_id else None
+    
+    @classmethod
+    def all(cls) -> List['Shortlist']:
+        """
+        Factory method: Get all shortlist entries as Shortlist instances
+        
+        Returns:
+            List of Shortlist objects
+        """
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('shortlist')
+            .select('*, requests(*)')
+            .execute()
+        )
+        
+        if result and result.data:
+            return [cls(shortlist_data=data) for data in result.data]
+        return []
+    
+    @classmethod
+    def by_csr_user(cls, csr_user_id: int, status: str = None) -> List['Shortlist']:
+        """
+        Factory method: Get shortlist entries by CSR user
         
         Args:
             csr_user_id: CSR user ID
-            status: Optional filter by status
+            status: Optional status filter
             
         Returns:
-            Count of shortlist entries
+            List of Shortlist objects
         """
         supabase = get_supabase()
+        query = supabase.table('shortlist').select('*, requests(*)').eq('csr_user_id', csr_user_id)
         
-        try:
-            query = supabase.table('shortlist').select('id', count='exact').eq('csr_user_id', csr_user_id)
-            
-            if status:
-                query = query.eq('status', status)
-            
-            result = query.execute()
-            return result.count if hasattr(result, 'count') else 0
-            
-        except Exception as e:
-            print(f"Error counting shortlist: {str(e)}")
-            return 0
+        if status:
+            query = query.eq('status', status)
+        
+        result = execute_with_retry(lambda: query.execute())
+        
+        if result and result.data:
+            return [cls(shortlist_data=data) for data in result.data]
+        return []
     
-    @staticmethod
-    def get_request_shortlist_count(request_id: int, status: str = None) -> int:
+    @classmethod
+    def by_request(cls, request_id: int) -> List['Shortlist']:
         """
-        Get count of CSRs who shortlisted a request
+        Factory method: Get shortlist entries by request
         
         Args:
             request_id: Request ID
-            status: Optional filter by status
             
         Returns:
-            Count of shortlist entries
+            List of Shortlist objects
         """
         supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('shortlist')
+            .select('*, requests(*)')
+            .eq('request_id', request_id)
+            .execute()
+        )
         
-        try:
-            query = supabase.table('shortlist').select('id', count='exact').eq('request_id', request_id)
-            
-            if status:
-                query = query.eq('status', status)
-            
-            result = query.execute()
-            return result.count if hasattr(result, 'count') else 0
-            
-        except Exception as e:
-            print(f"Error counting request shortlists: {str(e)}")
-            return 0
-    
-    @staticmethod
-    def add_feedback(
-        shortlist_id: int,
-        pin_user_id: int,
-        feedback: str
-    ) -> Optional[Dict]:
+        if result and result.data:
+            return [cls(shortlist_data=data) for data in result.data]
+        return []
+
+    @classmethod
+    def active_assignment_for_request(cls, request_id: int) -> Optional['Shortlist']:
         """
-        PIN user adds feedback about CSR's help
+        Factory method: Get the active assignment for a request (IN_PROGRESS or COMPLETED)
+        """
+        entries = cls.by_request(request_id)
+        for entry in entries:
+            if entry.status in (cls.STATUS_IN_PROGRESS, cls.STATUS_COMPLETED):
+                return entry
+        return None
+    
+    @classmethod
+    def search(cls,
+               csr_user_id: int = None,
+               request_id: int = None,
+               status: str = None) -> List['Shortlist']:
+        """
+        Factory method: Search shortlist entries by multiple criteria
         
         Args:
-            shortlist_id: Shortlist entry ID
-            pin_user_id: PIN user ID (must be the request owner)
-            feedback: Feedback text
+            csr_user_id: Filter by CSR user
+            request_id: Filter by request
+            status: Filter by status
             
         Returns:
-            Updated shortlist entry dict, or None if failed
+            List of Shortlist objects matching criteria
         """
         supabase = get_supabase()
+        query = supabase.table('shortlist').select('*, requests(*)')
         
-        try:
-            # Get shortlist entry with request info
-            entry = supabase.table('shortlist').select('request_id, requests(pin_user_id)').eq('id', shortlist_id).execute()
-            if not entry.data:
-                return None
-            
-            # Verify user is the request owner
-            if entry.data[0]['requests']['pin_user_id'] != pin_user_id:
-                return None  # Not the request owner
-            
-            # Update feedback
-            result = supabase.table('shortlist').update({
-                'feedback_from_pin': feedback,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', shortlist_id).execute()
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error adding feedback: {str(e)}")
-            return None
+        if csr_user_id:
+            query = query.eq('csr_user_id', csr_user_id)
+        if request_id:
+            query = query.eq('request_id', request_id)
+        if status:
+            query = query.eq('status', status)
+        
+        result = execute_with_retry(lambda: query.execute())
+        
+        if result and result.data:
+            return [cls(shortlist_data=data) for data in result.data]
+        return []
     
-    @staticmethod
-    def get_statistics(csr_user_id: int) -> Dict:
+    @classmethod
+    def find_by_csr_and_request(cls, csr_user_id: int, request_id: int) -> Optional['Shortlist']:
         """
-        Get statistics for CSR's volunteer activity
+        Factory method: Find shortlist entry by CSR user and request
         
         Args:
             csr_user_id: CSR user ID
+            request_id: Request ID
             
         Returns:
-            Dict with statistics
+            Shortlist object or None if not found
         """
         supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('shortlist')
+            .select('*, requests(*)')
+            .eq('csr_user_id', csr_user_id)
+            .eq('request_id', request_id)
+            .execute()
+        )
         
-        try:
-            shortlist_entries = supabase.table('shortlist').select('id, status, volunteered_hours').eq('csr_user_id', csr_user_id).execute()
-            
-            if not shortlist_entries.data:
-                return {
-                    'total_shortlisted': 0,
-                    'in_progress': 0,
-                    'completed': 0,
-                    'total_hours': 0
-                }
-            
-            entries = shortlist_entries.data
-            total_hours = sum([e.get('volunteered_hours') or 0 for e in entries])
-            
-            return {
-                'total_shortlisted': len(entries),
-                'shortlisted': len([e for e in entries if e['status'] == Shortlist.STATUS_SHORTLISTED]),
-                'inProgress': len([e for e in entries if e['status'] == Shortlist.STATUS_IN_PROGRESS]),
-                'completed': len([e for e in entries if e['status'] == Shortlist.STATUS_COMPLETED]),
-                'declined': len([e for e in entries if e['status'] == Shortlist.STATUS_DECLINED]),
-                'totalHoursVolunteered': total_hours
-            }
-            
-        except Exception as e:
-            print(f"Error getting statistics: {str(e)}")
-            return {}
+        if result and result.data:
+            return cls(shortlist_data=result.data[0])
+        return None

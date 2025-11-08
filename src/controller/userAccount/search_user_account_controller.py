@@ -1,30 +1,61 @@
-"""Search User Account Controller - Business logic for user search"""
+"""
+Search User Account Controller - TRUE OOP Implementation
+"""
 
+from typing import Dict, Tuple
 from src.entity import User, Role
 
 
 class SearchUserAccountController:
-    @staticmethod
-    def search(data):
-        """Search user accounts by criteria"""
+    """
+    Search User Account Controller - TRUE OOP
+    
+    Usage:
+        controller = SearchUserAccountController(search_params)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, search_params: Dict):
+        """
+        Initialize controller with search parameters
+        
+        Args:
+            search_params: Dictionary with search criteria (username, email, full_name)
+        """
+        self.search_params = search_params or {}
+        self.users = []
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute user search
+        
+        Returns:
+            Tuple of (response_dict, status_code)
+        """
         try:
-            if not data:
-                data = {}
+            # Extract search parameters
+            username = self.search_params.get('username', '')
+            email = self.search_params.get('email', '')
+            full_name = self.search_params.get('full_name', '')
             
-            users = User.search_users(
-                username=data.get('username', ''),
-                email=data.get('email', ''),
-                full_name=data.get('full_name', '')
+            # Search for User objects (factory method)
+            self.users = User.search(
+                username=username,
+                email=email,
+                full_name=full_name
             )
-
+            
+            # Convert to dictionaries
+            users_data = [user.to_dict() for user in self.users]
+            
             return {
                 'success': True,
-                'data': users,
-                'count': len(users) if users else 0
+                'data': users_data,
+                'count': len(users_data)
             }, 200
+            
         except Exception as e:
             return {
                 'success': False,
                 'message': str(e)
             }, 500
-

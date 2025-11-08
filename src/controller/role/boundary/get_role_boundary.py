@@ -11,5 +11,6 @@ get_role_boundary = Blueprint('get_role', __name__)
 @require_role(Role.USER_ADMIN)
 def get_role(role_id):
     """Get specific role by ID"""
-    response, status = GetRoleController.get_role(role_id)
+    controller = GetRoleController(role_id)
+    response, status = controller.execute()
     return jsonify(response), status

@@ -1,28 +1,27 @@
 """
-Get Request Lookups Controller (Control Layer)
-Handles retrieving request categories and service types
+Get Request Lookups Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.request import Request
 from src.utils.helpers import ResponseHelpers
 
-class GetRequestLookupsController:
+
+class GetRequestCategoriesController:
     """
-    Provides lookup data for request creation forms
+    Get Request Categories Controller - TRUE OOP
+    
+    Usage:
+        controller = GetRequestCategoriesController()
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def get_categories():
-        """
-        Get all available request categories
-        
-        Returns: (response_dict, status_code)
-        """
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute categories retrieval"""
         try:
-            # Call ENTITY layer
-            categories = Request.get_request_categories()
+            # Get categories from Request entity
+            categories = Request.get_categories()
             
-            # Return response
             return (ResponseHelpers.success_response(
                 data=categories,
                 message='Categories retrieved successfully'
@@ -31,19 +30,23 @@ class GetRequestLookupsController:
         except Exception as e:
             print(f"[ERROR] Get categories failed: {str(e)}")
             return (ResponseHelpers.error_response('Internal server error'), 500)
+
+
+class GetRequestServiceTypesController:
+    """
+    Get Request Service Types Controller - TRUE OOP
     
-    @staticmethod
-    def get_service_types():
-        """
-        Get all available service types
-        
-        Returns: (response_dict, status_code)
-        """
+    Usage:
+        controller = GetRequestServiceTypesController()
+        response, status = controller.execute()
+    """
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute service types retrieval"""
         try:
-            # Call ENTITY layer
+            # Get service types from Request entity
             service_types = Request.get_service_types()
             
-            # Return response
             return (ResponseHelpers.success_response(
                 data=service_types,
                 message='Service types retrieved successfully'

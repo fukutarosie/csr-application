@@ -12,5 +12,6 @@ create_role_boundary = Blueprint('create_role', __name__)
 def create_role():
     """Create a new role"""
     payload = request.get_json()
-    response, status = CreateRoleController.create_role(payload)
+    controller = CreateRoleController(payload)
+    response, status = controller.execute()
     return jsonify(response), status

@@ -65,8 +65,12 @@ export default function RequestDetail() {
       const typesRes = await axios.get(
         'http://localhost:5000/api/requests/service-types'
       );
-      if (typesRes.data.success) {
-        setServiceTypes(typesRes.data.data || []);
+      
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(typesRes.data) ? typesRes.data[0] : typesRes.data;
+      
+      if (actualData && actualData.success) {
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Error fetching lookup data:', err);
@@ -404,10 +408,11 @@ export default function RequestDetail() {
                     value={formData.service_type || ''}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    required
                   >
                     <option value="">Select service type</option>
                     {serviceTypes.map(type => (
-                      <option key={type.id} value={type.name}>{type.name}</option>
+                      <option key={type.id} value={type.service_name}>{type.service_name}</option>
                     ))}
                   </select>
                 </div>

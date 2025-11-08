@@ -1,46 +1,64 @@
 """
-Remove from Shortlist Controller - CSR removes request from shortlist (Control Layer)
+Remove from Shortlist Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.shortlist import Shortlist
 from src.entity import User
 from src.utils.helpers import ResponseHelpers
 
+
 class RemoveFromShortlistController:
     """
-    Remove a request from CSR's shortlist
+    Remove from Shortlist Controller - TRUE OOP
+    
+    Usage:
+        controller = RemoveFromShortlistController(auth_token, shortlist_id)
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def remove_shortlist(auth_token, shortlist_id):
+    def __init__(self, auth_token: str, shortlist_id: int):
         """
-        Remove shortlist entry
+        Initialize controller
         
-        Returns: (response_dict, status_code)
+        Args:
+            auth_token: JWT authentication token
+            shortlist_id: ID of shortlist entry to remove
+        """
+        self.auth_token = auth_token
+        self.shortlist_id = shortlist_id
+        self.user = None
+        self.shortlist = None
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute shortlist removal
+        
+        Returns:
+            Tuple of (response_dict, status_code)
         """
         try:
-            # Verify token and get user
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
-            csr_user_id = user_data['id']
+            # Load Shortlist object
+            self.shortlist = Shortlist.find(self.shortlist_id)
+            if not self.shortlist:
+                return (ResponseHelpers.error_response('Shortlist entry not found', 404), 404)
             
-            # Call ENTITY layer to remove
-            success = Shortlist.remove_from_shortlist(
-                shortlist_id=shortlist_id,
-                csr_user_id=csr_user_id
-            )
+            # Verify ownership
+            if self.shortlist.csr_user_id != self.user.id:
+                return (ResponseHelpers.error_response('Unauthorized', 403), 403)
             
-            if not success:
-                return (ResponseHelpers.error_response(
-                    'Failed to remove from shortlist. Entry not found or unauthorized.',
-                    400
-                ), 400)
+            # Delete shortlist entry (instance method)
+            self.shortlist.delete()
             
-            # Note: shortlist_count is automatically decremented by Shortlist.remove_from_shortlist() in Entity layer
-            
-            # Return response
             return (ResponseHelpers.success_response(
                 message='Removed from shortlist successfully'
             ), 200)

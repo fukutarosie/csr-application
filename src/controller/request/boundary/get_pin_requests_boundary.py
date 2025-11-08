@@ -22,7 +22,6 @@ def get_requests():
     page = request.args.get('page', '1')
     limit = request.args.get('limit', '10')
     
-    response, status = GetPINRequestsController.get_requests(
-        auth_token, status_param, service_type, page, limit
-    )
+    controller = GetPINRequestsController(auth_token, status_param, service_type, page, limit)
+    response, status = controller.execute()
     return jsonify(response), status

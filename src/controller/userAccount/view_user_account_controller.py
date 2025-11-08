@@ -1,31 +1,82 @@
-"""View User Account Controller - Business logic for user retrieval"""
+"""
+View User Account Controllers - TRUE OOP Implementation
+"""
 
+from typing import Dict, Tuple, Optional
 from src.entity import User, Role
 
 
-class ViewUserAccountController:
-    @staticmethod
-    def view_all():
-        """Get all user accounts"""
+class ViewAllUserAccountsController:
+    """
+    View All User Accounts Controller - TRUE OOP
+    
+    Usage:
+        controller = ViewAllUserAccountsController()
+        response, status = controller.execute()
+    """
+    
+    def __init__(self):
+        """Initialize controller"""
+        self.users = []
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute retrieval of all users
+        
+        Returns:
+            Tuple of (response_dict, status_code)
+        """
         try:
-            users = User.get_all_users()
+            # Get all User objects (factory method)
+            self.users = User.all()
+            
+            # Convert to dictionaries
+            users_data = [user.to_dict() for user in self.users]
+            
             return {
                 'success': True,
-                'data': users,
-                'count': len(users) if users else 0
+                'data': users_data,
+                'count': len(users_data)
             }, 200
+            
         except Exception as e:
             return {
                 'success': False,
                 'message': str(e)
             }, 500
 
-    @staticmethod
-    def view_one(user_id):
-        """Get specific user account by ID"""
+
+class ViewOneUserAccountController:
+    """
+    View One User Account Controller - TRUE OOP
+    
+    Usage:
+        controller = ViewOneUserAccountController(user_id)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, user_id: int):
+        """
+        Initialize controller with user ID
+        
+        Args:
+            user_id: ID of user to retrieve
+        """
+        self.user_id = user_id
+        self.user = None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute retrieval of specific user
+        
+        Returns:
+            Tuple of (response_dict, status_code)
+        """
         try:
-            user = User.get_user_by_id(user_id)
-            if not user:
+            # Load User object (factory method)
+            self.user = User.find(self.user_id)
+            
+            if not self.user:
                 return {
                     'success': False,
                     'message': 'User account not found'
@@ -33,11 +84,11 @@ class ViewUserAccountController:
             
             return {
                 'success': True,
-                'data': user
+                'data': self.user.to_dict()
             }, 200
+            
         except Exception as e:
             return {
                 'success': False,
                 'message': str(e)
             }, 500
-

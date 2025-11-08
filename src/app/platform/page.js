@@ -20,7 +20,7 @@ export default function PlatformDashboard() {
     }
 
     const user = JSON.parse(userData);
-    if (user.role.name !== 'Platform Management') {
+    if (user.role.role_name !== 'Platform Management') {
       router.push('/');
       return;
     }
@@ -59,7 +59,7 @@ export default function PlatformDashboard() {
           
           <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg text-left inline-block">
             <p className="text-sm text-gray-700">
-              <strong>User Role:</strong> {user?.role.name}<br />
+              <strong>User Role:</strong> {user?.role.role_name}<br />
               <strong>Email:</strong> {user?.email}
             </p>
           </div>

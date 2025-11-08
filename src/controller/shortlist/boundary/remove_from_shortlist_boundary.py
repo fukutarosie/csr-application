@@ -16,5 +16,7 @@ def remove_shortlist(shortlist_id):
     """Remove a request from CSR's shortlist"""
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     
-    response, status = RemoveFromShortlistController.remove_shortlist(auth_token, shortlist_id)
+    # Use OOP instance method
+    controller = RemoveFromShortlistController(auth_token, shortlist_id)
+    response, status = controller.execute()
     return jsonify(response), status

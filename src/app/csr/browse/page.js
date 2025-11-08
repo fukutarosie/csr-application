@@ -34,7 +34,7 @@ export default function BrowseRequests() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'CSR Rep') {
+    if (parsedUser.role.role_name !== 'CSR Rep') {
       router.push('/');
       return;
     }
@@ -49,8 +49,12 @@ export default function BrowseRequests() {
   const fetchServiceTypes = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/requests/service-types');
-      if (response.data.success) {
-        setServiceTypes(response.data.data);
+      
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      
+      if (actualData && actualData.success) {
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Failed to fetch service types:', err);

@@ -19,5 +19,7 @@ def get_shortlist():
     page = request.args.get('page', '1')
     limit = request.args.get('limit', '10')
     
-    response, status_code = GetShortlistController.get_shortlist(auth_token, status, page, limit)
+    # Use OOP instance method
+    controller = GetShortlistController(auth_token, status, page, limit)
+    response, status_code = controller.execute()
     return jsonify(response), status_code

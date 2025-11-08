@@ -12,7 +12,8 @@ suspend_user_profile_boundary = Blueprint('suspend_user_profile', __name__, url_
 @require_role(Role.USER_ADMIN)
 def delete_user_profile(profile_id):
     try:
-        response, status = SuspendUserProfileController.delete_user_profile(profile_id)
+        controller = SuspendUserProfileController(profile_id)
+        response, status = controller.execute()
         return jsonify(response), status
     except Exception as exc:
         return jsonify({

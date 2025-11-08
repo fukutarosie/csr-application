@@ -16,5 +16,6 @@ def get_stats():
     """Get statistics about CSR's shortlist"""
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     
-    response, status = GetShortlistStatsController.get_stats(auth_token)
+    controller = GetShortlistStatsController(auth_token)
+    response, status = controller.execute()
     return jsonify(response), status

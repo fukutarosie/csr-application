@@ -1,0 +1,294 @@
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from .supabase_config import get_supabase
+
+
+class Profile:
+    """
+    Profile Entity Class - Proper OOP Implementation
+    
+    This class now supports BOTH:
+    1. Instance methods (OOP style) - profile = Profile(profile_id); profile.save()
+    2. Static methods (Legacy style) - Profile.get_profile_by_id(profile_id)
+    
+    All existing code continues to work!
+    """
+    
+    # ============================================================================
+    # INSTANCE METHODS (NEW - Proper OOP)
+    # ============================================================================
+    
+    def __init__(self, profile_id: Optional[int] = None, profile_data: Optional[Dict] = None):
+        """
+        Initialize a Profile instance
+        
+        Args:
+            profile_id: Load existing profile from database by ID
+            profile_data: Initialize with existing profile data
+            
+        Example:
+            profile = Profile(profile_id=1)
+            profile = Profile(profile_data={'id': 1, 'profile_name': 'Admin', ...})
+            profile = Profile()  # Create new empty profile
+        """
+        # Instance variables (object state)
+        self.id: Optional[int] = None
+        self.profile_name: Optional[str] = None
+        self.description: Optional[str] = None
+        self.created_at: Optional[str] = None
+        self.updated_at: Optional[str] = None
+        
+        # Load data if provided
+        if profile_id is not None:
+            self._load_from_id(profile_id)
+        elif profile_data is not None:
+            self._load_from_dict(profile_data)
+    
+    def _load_from_id(self, profile_id: int) -> None:
+        """Load profile data from database by ID (private method)"""
+        data = Profile.get_profile_by_id(profile_id)
+        if data:
+            self._load_from_dict(data)
+    
+    def _load_from_dict(self, data: Dict) -> None:
+        """Populate instance variables from dictionary (private method)"""
+        self.id = data.get('id')
+        self.profile_name = data.get('profile_name')
+        self.description = data.get('description')
+        self.created_at = data.get('created_at')
+        self.updated_at = data.get('updated_at')
+    
+    def to_dict(self) -> Dict:
+        """Convert instance to dictionary (for API responses)"""
+        return {
+            'id': self.id,
+            'profile_name': self.profile_name,
+            'description': self.description,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at
+        }
+    
+    def save(self) -> bool:
+        """
+        Save profile to database (create or update)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if self.id is None:
+            # Create new profile
+            success, status = Profile.create_profile(
+                profile_name=self.profile_name,
+                description=self.description or ''
+            )
+            if success:
+                # Reload to get ID
+                data = Profile.get_profile_by_name(self.profile_name)
+                if data:
+                    self._load_from_dict(data)
+                return True
+            return False
+        else:
+            # Update existing profile
+            updates = {
+                'profile_name': self.profile_name,
+                'description': self.description
+            }
+            success, status = Profile.update_profile(self.id, updates)
+            return success
+    
+    def delete(self) -> bool:
+        """Delete this profile from database"""
+        if self.id is None:
+            return False
+        success, status = Profile.delete_profile(self.id)
+        return success
+    
+    def update_attributes(self, **kwargs) -> None:
+        """Update multiple attributes at once"""
+        for key, value in kwargs.items():
+            if hasattr(self, key) and key != 'id':
+                setattr(self, key, value)
+    
+    # Magic methods
+    def __str__(self) -> str:
+        """String representation"""
+        return f"Profile({self.profile_name})"
+    
+    def __repr__(self) -> str:
+        """Developer-friendly representation"""
+        return f"Profile(id={self.id}, profile_name='{self.profile_name}')"
+    
+    def __eq__(self, other) -> bool:
+        """Equality comparison"""
+        if not isinstance(other, Profile):
+            return False
+        return self.id == other.id
+    
+    def __hash__(self) -> int:
+        """Make hashable"""
+        return hash(self.id) if self.id else hash(id(self))
+    
+    # ============================================================================
+    # CLASS METHODS (Factory methods for OOP)
+    # ============================================================================
+    
+    @classmethod
+    def find(cls, profile_id: int) -> Optional['Profile']:
+        """Factory method: Find and return a Profile instance"""
+        data = cls.get_profile_by_id(profile_id)
+        if data:
+            return cls(profile_data=data)
+        return None
+    
+    @classmethod
+    def find_by_name(cls, profile_name: str) -> Optional['Profile']:
+        """Factory method: Find profile by name"""
+        data = cls.get_profile_by_name(profile_name)
+        if data:
+            return cls(profile_data=data)
+        return None
+    
+    @classmethod
+    def all(cls) -> List['Profile']:
+        """Factory method: Get all profiles as Profile instances"""
+        data_list = cls.get_all_profiles()
+        return [cls(profile_data=data) for data in data_list]
+    
+    @classmethod
+    def search(cls, query: str) -> List['Profile']:
+        """Factory method: Search profiles and return instances"""
+        data_list = cls.search_profiles(query)
+        return [cls(profile_data=data) for data in data_list]
+    
+    # ============================================================================
+    # STATIC METHODS (LEGACY - Backward Compatible)
+    # Keep all existing static methods so nothing breaks!
+    # ============================================================================
+    
+    @staticmethod
+    def create_profile(profile_name: str, description: str = '') -> Tuple[bool, int]:
+        """Create a new user profile"""
+        supabase = get_supabase()
+        
+        try:
+            profile_data = {
+                "profile_name": profile_name,
+                "description": description,
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+            # Check if profile exists
+            existing = supabase.table('profiles').select("*").eq('profile_name', profile_name).execute()
+            if existing.data:
+                return False, 409  # Conflict - profile already exists
+            
+            result = supabase.table('profiles').insert(profile_data).execute()
+            return True, 201
+            
+        except Exception as e:
+            print(f"Error creating profile: {str(e)}")
+            return False, 500
+
+    @staticmethod
+    def get_profile_by_id(profile_id: int) -> Optional[Dict]:
+        """Get profile by ID"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('profiles').select("*").eq('id', profile_id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error getting profile: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_profile_by_name(profile_name: str) -> Optional[Dict]:
+        """Get profile by name"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('profiles').select("*").eq('profile_name', profile_name).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error getting profile: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_all_profiles() -> List[Dict]:
+        """Get all user profiles"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('profiles').select("*").order('created_at', desc=False).execute()
+            return result.data if result.data else []
+        except Exception as e:
+            print(f"Error getting profiles: {str(e)}")
+            return []
+
+    @staticmethod
+    def update_profile(profile_id: int, updates: Dict) -> Tuple[bool, int]:
+        """Update profile details"""
+        supabase = get_supabase()
+        
+        try:
+            # Add updated_at timestamp
+            updates['updated_at'] = datetime.utcnow().isoformat()
+            
+            result = supabase.table('profiles').update(updates).eq('id', profile_id).execute()
+            
+            if result.data:
+                return True, 200
+            else:
+                return False, 404
+        except Exception as e:
+            print(f"Error updating profile: {str(e)}")
+            return False, 500
+
+    @staticmethod
+    def delete_profile(profile_id: int) -> Tuple[bool, int]:
+        """Delete profile and cascade delete associated users"""
+        supabase = get_supabase()
+        
+        try:
+            # First, get all users with this profile
+            users_result = supabase.table('users').select('id').eq('profile_id', profile_id).execute()
+            user_ids = [u['id'] for u in users_result.data] if users_result.data else []
+            
+            # Delete all associated users
+            if user_ids:
+                for user_id in user_ids:
+                    supabase.table('users').delete().eq('id', user_id).execute()
+            
+            # Delete the profile
+            result = supabase.table('profiles').delete().eq('id', profile_id).execute()
+            
+            return True, 200
+        except Exception as e:
+            print(f"Error deleting profile: {str(e)}")
+            return False, 500
+
+    @staticmethod
+    def search_profiles(query: str = '') -> List[Dict]:
+        """Search profiles by name or description"""
+        supabase = get_supabase()
+        
+        try:
+            if not query:
+                return Profile.get_all_profiles()
+            
+            result = supabase.table('profiles').select("*").execute()
+            
+            # Client-side filtering
+            profiles = result.data if result.data else []
+            filtered = [
+                p for p in profiles
+                if query.lower() in p.get('profile_name', '').lower() or 
+                   query.lower() in p.get('description', '').lower()
+            ]
+            
+            return filtered
+        except Exception as e:
+            print(f"Error searching profiles: {str(e)}")
+            return []

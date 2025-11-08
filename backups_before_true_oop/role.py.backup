@@ -1,0 +1,347 @@
+from typing import Dict, List, Optional
+from datetime import datetime
+from .supabase_config import get_supabase
+
+
+class Role:
+    """
+    Role Entity Class - Proper OOP Implementation
+    
+    This class now supports BOTH:
+    1. Instance methods (OOP style) - role = Role(role_id); role.update(...)
+    2. Static methods (Legacy style) - Role.get_role_by_id(role_id)
+    
+    All existing code continues to work!
+    """
+    
+    # ============================================================================
+    # CLASS CONSTANTS (Shared across all instances)
+    # ============================================================================
+    USER_ADMIN = "User Admin"
+    PIN = "PIN"
+    CSR_REP = "CSR Rep"
+    PLATFORM_MANAGEMENT = "Platform Management"
+
+    ROLE_ROUTES = {
+        USER_ADMIN: "/admin/dashboard",
+        PIN: "/pin/dashboard",
+        CSR_REP: "/csr/dashboard",
+        PLATFORM_MANAGEMENT: "/platform/dashboard"
+    }
+    
+    # ============================================================================
+    # INSTANCE METHODS (NEW - Proper OOP)
+    # ============================================================================
+    
+    def __init__(self, role_id: Optional[int] = None, role_data: Optional[Dict] = None):
+        """
+        Initialize a Role instance
+        
+        Args:
+            role_id: Load existing role from database by ID
+            role_data: Initialize with existing role data (from query result)
+            
+        Example:
+            # Load from database
+            role = Role(role_id=2)
+            
+            # Create from data
+            role = Role(role_data={'id': 2, 'role_name': 'PIN', ...})
+            
+            # Create new (empty)
+            role = Role()
+            role.role_name = "New Role"
+            role.save()
+        """
+        # Instance variables (object state)
+        self.id: Optional[int] = None
+        self.role_name: Optional[str] = None
+        self.role_code: Optional[str] = None
+        self.description: Optional[str] = None
+        self.dashboard_route: Optional[str] = None
+        self.created_at: Optional[str] = None
+        
+        # Load data if provided
+        if role_id is not None:
+            self._load_from_id(role_id)
+        elif role_data is not None:
+            self._load_from_dict(role_data)
+    
+    def _load_from_id(self, role_id: int) -> None:
+        """Load role data from database by ID (private method)"""
+        data = Role.get_role_by_id(role_id)  # Use static method
+        if data:
+            self._load_from_dict(data)
+    
+    def _load_from_dict(self, data: Dict) -> None:
+        """Populate instance variables from dictionary (private method)"""
+        self.id = data.get('id')
+        self.role_name = data.get('role_name')
+        self.role_code = data.get('role_code')
+        self.description = data.get('description')
+        self.dashboard_route = data.get('dashboard_route')
+        self.created_at = data.get('created_at')
+    
+    def to_dict(self) -> Dict:
+        """Convert instance to dictionary (for API responses)"""
+        return {
+            'id': self.id,
+            'role_name': self.role_name,
+            'role_code': self.role_code,
+            'description': self.description,
+            'dashboard_route': self.dashboard_route,
+            'created_at': self.created_at
+        }
+    
+    def save(self) -> bool:
+        """
+        Save role to database (create or update)
+        
+        Returns:
+            True if successful, False otherwise
+            
+        Example:
+            role = Role()
+            role.role_name = "New Role"
+            role.role_code = "NEW_ROLE"
+            role.description = "A new role"
+            if role.save():
+                print(f"Role created with ID: {role.id}")
+        """
+        if self.id is None:
+            # Create new role
+            result = Role.create_role(
+                role_name=self.role_name,
+                role_code=self.role_code,
+                description=self.description,
+                dashboard_route=self.dashboard_route or "/"
+            )
+            if result:
+                self._load_from_dict(result)
+                return True
+            return False
+        else:
+            # Update existing role
+            result = Role.update_role(
+                role_id=self.id,
+                role_name=self.role_name,
+                role_code=self.role_code,
+                description=self.description,
+                dashboard_route=self.dashboard_route or "/"
+            )
+            if result:
+                self._load_from_dict(result)
+                return True
+            return False
+    
+    def delete(self) -> bool:
+        """
+        Delete this role from database
+        
+        Returns:
+            True if successful, False otherwise
+            
+        Example:
+            role = Role(role_id=5)
+            if role.delete():
+                print("Role deleted successfully")
+        """
+        if self.id is None:
+            return False
+        return Role.delete_role(self.id)
+    
+    def update_attributes(self, **kwargs) -> None:
+        """
+        Update multiple attributes at once
+        
+        Example:
+            role = Role(role_id=2)
+            role.update_attributes(
+                role_name="Updated Name",
+                description="Updated description"
+            )
+            role.save()
+        """
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+    
+    def is_admin(self) -> bool:
+        """Check if this is an admin role"""
+        return self.role_name == Role.USER_ADMIN
+    
+    def is_pin(self) -> bool:
+        """Check if this is a PIN role"""
+        return self.role_name == Role.PIN
+    
+    def is_csr(self) -> bool:
+        """Check if this is a CSR role"""
+        return self.role_name == Role.CSR_REP
+    
+    # Magic methods for better OOP experience
+    def __str__(self) -> str:
+        """String representation for printing"""
+        return f"Role({self.role_name})"
+    
+    def __repr__(self) -> str:
+        """Developer-friendly representation"""
+        return f"Role(id={self.id}, role_name='{self.role_name}', role_code='{self.role_code}')"
+    
+    def __eq__(self, other) -> bool:
+        """Equality comparison"""
+        if not isinstance(other, Role):
+            return False
+        return self.id == other.id
+    
+    def __hash__(self) -> int:
+        """Make hashable for use in sets/dicts"""
+        return hash(self.id) if self.id else hash(id(self))
+    
+    # ============================================================================
+    # STATIC METHODS (LEGACY - Backward Compatible)
+    # Keep all existing static methods so nothing breaks!
+    # ============================================================================
+    
+    @staticmethod
+    def create_role(role_name: str, role_code: str, description: str, dashboard_route: str = "/") -> Optional[Dict]:
+        """Create a new role (legacy static method - still works!)"""
+        supabase = get_supabase()
+        
+        try:
+            # Get dashboard route based on role name if not provided
+            if dashboard_route == "/":
+                dashboard_route = Role.ROLE_ROUTES.get(role_name, "/dashboard")
+            
+            role_data = {
+                "role_name": role_name,
+                "role_code": role_code,
+                "description": description,
+                "dashboard_route": dashboard_route,
+                "created_at": datetime.utcnow().isoformat()
+            }
+            
+            # Check if role exists
+            existing = supabase.table('roles').select("*").eq('role_name', role_name).execute()
+            if existing.data:
+                return None  # Role already exists
+            
+            result = supabase.table('roles').insert(role_data).execute()
+            return result.data[0] if result.data else None
+            
+        except Exception as e:
+            print(f"Error creating role: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_role_by_id(role_id: int) -> Optional[Dict]:
+        """Get role by ID (legacy static method - still works!)"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('roles').select("*").eq('id', role_id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error getting role: {str(e)}")
+            return None
+
+    @staticmethod
+    def get_all_roles() -> List[Dict]:
+        """Get all roles (legacy static method - still works!)"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('roles').select("*").execute()
+            return result.data
+        except Exception as e:
+            print(f"Error getting roles: {str(e)}")
+            return []
+
+    @staticmethod
+    def get_role_by_name(role_name: str) -> Optional[Dict]:
+        """Get role by name (legacy static method - still works!)"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('roles').select("*").eq('role_name', role_name).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error getting role: {str(e)}")
+            return None
+
+    @staticmethod
+    def update_role(role_id: int, role_name: str, role_code: str, description: str, dashboard_route: str = "/") -> Optional[Dict]:
+        """Update an existing role (legacy static method - still works!)"""
+        supabase = get_supabase()
+        
+        try:
+            role_data = {
+                "role_name": role_name,
+                "role_code": role_code,
+                "description": description,
+                "dashboard_route": dashboard_route
+            }
+            
+            result = supabase.table('roles').update(role_data).eq('id', role_id).execute()
+            return result.data[0] if result.data else None
+        except Exception as e:
+            print(f"Error updating role: {str(e)}")
+            return None
+
+    @staticmethod
+    def delete_role(role_id: int) -> bool:
+        """Delete a role (legacy static method - still works!)"""
+        supabase = get_supabase()
+        
+        try:
+            result = supabase.table('roles').delete().eq('id', role_id).execute()
+            return True
+        except Exception as e:
+            print(f"Error deleting role: {str(e)}")
+            return False
+    
+    # ============================================================================
+    # CLASS METHODS (NEW - Factory methods for OOP)
+    # ============================================================================
+    
+    @classmethod
+    def find(cls, role_id: int) -> Optional['Role']:
+        """
+        Factory method: Find and return a Role instance
+        
+        Example:
+            role = Role.find(2)
+            if role:
+                print(role.role_name)
+        """
+        data = cls.get_role_by_id(role_id)
+        if data:
+            return cls(role_data=data)
+        return None
+    
+    @classmethod
+    def find_by_name(cls, role_name: str) -> Optional['Role']:
+        """
+        Factory method: Find role by name
+        
+        Example:
+            role = Role.find_by_name("PIN")
+            if role:
+                print(role.dashboard_route)
+        """
+        data = cls.get_role_by_name(role_name)
+        if data:
+            return cls(role_data=data)
+        return None
+    
+    @classmethod
+    def all(cls) -> List['Role']:
+        """
+        Factory method: Get all roles as Role instances
+        
+        Example:
+            roles = Role.all()
+            for role in roles:
+                print(role.role_name)
+        """
+        data_list = cls.get_all_roles()
+        return [cls(role_data=data) for data in data_list]

@@ -78,7 +78,7 @@ export default function CSRDashboard() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'CSR Rep') {
+    if (parsedUser.role.role_name !== 'CSR Rep') {
       router.push('/');
       return;
     }
@@ -221,6 +221,12 @@ export default function CSRDashboard() {
    */
   const handleToggleShortlist = async (requestId) => {
     const isCurrentlyShortlisted = shortlistedIds.includes(requestId);
+    const targetRequest = requests.find(r => r.id === requestId);
+    if (!isCurrentlyShortlisted && targetRequest?.active_assignment && targetRequest.active_assignment.csr_user_id !== user?.id) {
+      toast.error('This opportunity has already been accepted by another CSR representative.');
+      return;
+    }
+
     setAddingToShortlist(requestId);
     setError('');
 
@@ -263,6 +269,7 @@ export default function CSRDashboard() {
       
       // Step 3: Re-fetch from server to ensure UI matches database
       await fetchShortlistedIds();
+      await fetchRequests();
     } catch (err) {
       console.error('Shortlist toggle error:', err);
       const msg = err.response?.data?.message || 'Failed to update shortlist';
@@ -411,6 +418,10 @@ export default function CSRDashboard() {
         >
           {filteredRequests.map((request) => {
             const isShortlisted = shortlistedIds.includes(request.id);
+            const activeAssignment = request.active_assignment;
+            const takenByOther = activeAssignment && activeAssignment.csr_user_id !== user?.id;
+            const takenByMe = activeAssignment && activeAssignment.csr_user_id === user?.id;
+            const takenByName = activeAssignment?.csr_user?.full_name;
             return (
               <RequestCard
                 key={request.id}
@@ -418,13 +429,35 @@ export default function CSRDashboard() {
                 onClick={() => router.push(`/csr/browse/${request.id}`)}
                 theme="purple"
                 badge={
-                  isShortlisted && (
-                    <div className="absolute top-3 right-3 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center gap-1 z-10">
-                      <span>⭐</span>
-                      <span>Shortlisted</span>
-                    </div>
-                  )
+                  <>
+                    {request.assignment_status === 'IN_PROGRESS' && (
+                      <div className="absolute top-3 left-3 bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center gap-2 z-10">
+                        <span>🚀</span>
+                        <span>{takenByMe ? 'In Progress (You)' : 'In Progress'}</span>
+                      </div>
+                    )}
+                    {request.assignment_status === 'COMPLETED' && (
+                      <div className="absolute top-3 left-3 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center gap-2 z-10">
+                        <span>✅</span>
+                        <span>Completed</span>
+                      </div>
+                    )}
+                    {isShortlisted && (
+                      <div className="absolute top-3 right-3 bg-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg flex items-center gap-1 z-10">
+                        <span>⭐</span>
+                        <span>Shortlisted</span>
+                      </div>
+                    )}
+                  </>
                 }
+                extraInfo={activeAssignment ? (
+                  <div className="flex items-center text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+                    <span className="mr-2">👤</span>
+                    <span>
+                      {takenByMe ? 'You are currently volunteering for this opportunity.' : `Claimed by ${takenByName}.`}
+                    </span>
+                  </div>
+                ) : null}
                 actionButton={
                   <div className="flex items-center justify-between pt-4 border-t">
                     <button
@@ -432,17 +465,25 @@ export default function CSRDashboard() {
                         e.stopPropagation();
                         handleToggleShortlist(request.id);
                       }}
-                      disabled={addingToShortlist === request.id}
+                      disabled={addingToShortlist === request.id || (takenByOther && !isShortlisted)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
                         isShortlisted 
                           ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' 
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      } ${addingToShortlist === request.id ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      title={isShortlisted ? 'Remove from shortlist' : 'Add to shortlist'}
+                      } ${(addingToShortlist === request.id || (takenByOther && !isShortlisted)) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title={
+                        takenByOther && !isShortlisted 
+                          ? `Taken by ${takenByName}`
+                          : (isShortlisted ? 'Remove from shortlist' : 'Add to shortlist')
+                      }
                     >
                       <span className="text-xl">{isShortlisted ? '⭐' : '☆'}</span>
                       <span className="text-sm font-medium">
-                        {addingToShortlist === request.id ? 'Processing...' : (isShortlisted ? 'Shortlisted' : 'Shortlist')}
+                        {addingToShortlist === request.id
+                          ? 'Processing...'
+                          : takenByOther && !isShortlisted
+                            ? `Taken by ${takenByName}`
+                            : (isShortlisted ? 'Shortlisted' : 'Shortlist')}
                       </span>
                     </button>
                     <button

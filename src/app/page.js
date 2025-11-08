@@ -19,6 +19,7 @@ export default function LoginPage() {
     const fetchRoles = async () => {
       try {
         const response = await fetch('http://localhost:5000/api/roles/public');
+        
         const data = await response.json();
         
         if (data.success) {
@@ -54,6 +55,9 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log('[LOGIN] Form submitted!');
+      console.log('[LOGIN] Sending request with data:', formData);
+      
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: {
@@ -62,19 +66,29 @@ export default function LoginPage() {
         body: JSON.stringify(formData),
       });
 
+      console.log('[LOGIN] Response status:', response.status);
+      
       const data = await response.json();
+      console.log('[LOGIN] Response data:', data);
 
       if (!data.success) {
-        setError(data.message || 'Login failed');
+        const errorMsg = data.message || 'Login failed';
+        console.error('[LOGIN] Login failed:', errorMsg);
+        setError(errorMsg);
         return;
       }
 
+      console.log('[LOGIN] Login successful, storing token and redirecting...');
       localStorage.setItem('token', data.data.token);
       localStorage.setItem('user', JSON.stringify(data.data.user));
-      router.push(data.data.user.role.dashboard_route);
+      
+      // Use window.location.href for more reliable redirect
+      window.location.href = data.data.user.role.dashboard_route;
 
     } catch (err) {
-      setError('An error occurred. Please try again.');
+      console.error('[LOGIN] Error during login:', err);
+      const errorMsg = 'Connection error: ' + err.message;
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }

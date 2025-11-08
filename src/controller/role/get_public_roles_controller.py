@@ -1,19 +1,30 @@
+"""
+Get Public Roles Controller - TRUE OOP Implementation
+"""
+
+from typing import Dict, Tuple
 from src.entity import Role
 
+
 class GetPublicRolesController:
-    """Controller for fetching roles without authentication (for login page)"""
+    """
+    Get Public Roles Controller - TRUE OOP
     
-    @staticmethod
-    def get_public_roles():
-        """Get all roles - Public endpoint for login page (no authentication required)"""
+    Usage:
+        controller = GetPublicRolesController()
+        response, status = controller.execute()
+    """
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute public roles retrieval"""
         try:
-            roles = Role.get_all_roles()
+            roles = Role.all()  # Use factory method
+            roles_data = [role.to_dict() for role in roles]
+            
             return ({
                 'success': True,
-                'data': roles
+                'data': roles_data
             }, 200)
+            
         except Exception as e:
-            return ({
-                'success': False,
-                'message': str(e)
-            }, 500)
+            return ({'success': False, 'message': str(e)}, 500)

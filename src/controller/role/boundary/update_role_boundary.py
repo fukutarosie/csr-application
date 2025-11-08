@@ -12,5 +12,6 @@ update_role_boundary = Blueprint('update_role', __name__)
 def update_role(role_id):
     """Update an existing role"""
     payload = request.get_json()
-    response, status = UpdateRoleController.update_role(role_id, payload)
+    controller = UpdateRoleController(role_id, payload)
+    response, status = controller.execute()
     return jsonify(response), status

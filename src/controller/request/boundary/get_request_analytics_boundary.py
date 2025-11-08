@@ -16,5 +16,6 @@ def get_analytics(request_id):
     """Get analytics for a specific request (view count, shortlist count)"""
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     
-    response, status = GetRequestAnalyticsController.get_analytics(auth_token, request_id)
+    controller = GetRequestAnalyticsController(auth_token, request_id)
+    response, status = controller.execute()
     return jsonify(response), status

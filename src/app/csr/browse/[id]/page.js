@@ -20,6 +20,12 @@ export default function CSRViewRequestDetail() {
   const [isShortlisted, setIsShortlisted] = useState(false);
   const [addingToShortlist, setAddingToShortlist] = useState(false);
 
+  const isTakenByAnotherCSR = request?.active_assignment 
+    && request.active_assignment.csr_user_id 
+    && request.active_assignment.csr_user_id !== user?.id;
+
+  const takenByName = request?.active_assignment?.csr_user?.full_name;
+
   const getToken = () => localStorage.getItem('token');
 
   useEffect(() => {
@@ -32,7 +38,7 @@ export default function CSRViewRequestDetail() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'CSR Rep') {
+    if (parsedUser.role.role_name !== 'CSR Rep') {
       router.push('/');
       return;
     }
@@ -81,6 +87,11 @@ export default function CSRViewRequestDetail() {
   };
 
   const handleToggleShortlist = async () => {
+    if (!isShortlisted && isTakenByAnotherCSR) {
+      toast.error('This opportunity has already been accepted by another CSR representative.');
+      return;
+    }
+
     setAddingToShortlist(true);
     try {
       if (isShortlisted) {
@@ -113,6 +124,8 @@ export default function CSRViewRequestDetail() {
         toast.success('Added to shortlist');
       }
       
+      await fetchRequestDetail();
+      await checkIfShortlisted();
     } catch (err) {
         const msg = err.response?.data?.message || 'Failed to update shortlist';
         toast.error(msg);
@@ -228,8 +241,10 @@ export default function CSRViewRequestDetail() {
               </div>
 
               <div>
-                <p className="text-sm text-gray-600">Requested By</p>
-                <p className="font-medium text-gray-900">{request?.users?.full_name || 'PIN User'}</p>
+                <p className="text-sm text-gray-600">Assigned CSR Volunteer</p>
+                <p className="font-medium text-gray-900">
+                  {takenByName ? `${takenByName}${request?.active_assignment?.status === 'IN_PROGRESS' ? ' (In Progress)' : ''}` : 'Not yet accepted'}
+                </p>
               </div>
 
               <div>
@@ -254,15 +269,29 @@ export default function CSRViewRequestDetail() {
             <div className="pt-6 border-t">
               <button
                 onClick={handleToggleShortlist}
-                disabled={addingToShortlist}
+                disabled={addingToShortlist || (isTakenByAnotherCSR && !isShortlisted)}
                 className={`w-full px-6 py-3 rounded-lg font-medium transition-colors ${
-                  isShortlisted
-                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                    : 'bg-purple-600 hover:bg-purple-700 text-white'
-                } ${addingToShortlist ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  isTakenByAnotherCSR && !isShortlisted
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : isShortlisted
+                      ? 'bg-red-600 hover:bg-red-700 text-white'
+                      : 'bg-purple-600 hover:bg-purple-700 text-white'
+                } ${(addingToShortlist || (isTakenByAnotherCSR && !isShortlisted)) ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
-                {addingToShortlist ? 'Processing...' : isShortlisted ? '❤️ Remove from Shortlist' : '🤍 Add to Shortlist'}
+                {addingToShortlist
+                  ? 'Processing...'
+                  : isShortlisted
+                    ? '❤️ Remove from Shortlist'
+                    : isTakenByAnotherCSR
+                      ? `Taken by ${takenByName}`
+                      : '🤍 Add to Shortlist'}
               </button>
+
+              {isTakenByAnotherCSR && (
+                <p className="mt-3 text-sm text-purple-700 bg-purple-100 border border-purple-200 rounded-lg p-3">
+                  This opportunity is currently being handled by {takenByName}. Please choose another request.
+                </p>
+              )}
             </div>
           </div>
         </div>

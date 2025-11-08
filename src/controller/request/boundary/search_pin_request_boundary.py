@@ -24,7 +24,6 @@ def search_requests():
     service_type = request.args.get('service_type', '').strip() or None
     my_requests = request.args.get('my_requests', 'true').lower() == 'true'
     
-    response, status_code = SearchPINRequestController.search_requests(
-        auth_token, keyword, category, status, priority, service_type, my_requests
-    )
+    controller = SearchPINRequestController(auth_token, keyword, category, status, priority, service_type, my_requests)
+    response, status_code = controller.execute()
     return jsonify(response), status_code

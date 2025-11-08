@@ -1,39 +1,58 @@
+"""
+Create Role Controller - TRUE OOP Implementation
+"""
+
+from typing import Dict, Tuple
 from src.entity import Role
 
+
 class CreateRoleController:
-    """Controller for creating a new role"""
+    """
+    Create Role Controller - TRUE OOP
     
-    @staticmethod
-    def create_role(data):
-        """Create a new role"""
+    Usage:
+        controller = CreateRoleController(data)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, data: Dict):
+        """Initialize controller"""
+        self.data = data
+        self.role = None
+    
+    def validate_data(self) -> Tuple[bool, str]:
+        """Validate request data"""
+        if not self.data.get('role_name') or not self.data.get('role_code') or not self.data.get('description'):
+            return False, 'Missing required fields: role_name, role_code, description'
+        return True, ''
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute role creation"""
         try:
-            # Validate required fields
-            if not data.get('role_name') or not data.get('role_code') or not data.get('description'):
+            # Validate
+            is_valid, error_msg = self.validate_data()
+            if not is_valid:
+                return ({'success': False, 'message': error_msg}, 400)
+            
+            # Create Role object
+            self.role = Role()
+            self.role.role_name = self.data['role_name']
+            self.role.role_code = self.data['role_code']
+            self.role.description = self.data['description']
+            self.role.dashboard_route = self.data.get('dashboard_route', '/')
+            
+            # Save (instance method)
+            if self.role.save():
                 return ({
-                    'success': False,
-                    'message': 'Missing required fields: role_name, role_code, description'
-                }, 400)
+                    'success': True,
+                    'data': self.role.to_dict(),
+                    'message': 'Role created successfully'
+                }, 201)
             
-            new_role = Role.create_role(
-                role_name=data['role_name'],
-                role_code=data['role_code'],
-                description=data['description'],
-                dashboard_route=data.get('dashboard_route', '/')
-            )
-            
-            if not new_role:
-                return ({
-                    'success': False,
-                    'message': 'Role already exists or failed to create'
-                }, 400)
-            
-            return ({
-                'success': True,
-                'data': new_role,
-                'message': 'Role created successfully'
-            }, 201)
-        except Exception as e:
             return ({
                 'success': False,
-                'message': str(e)
-            }, 500)
+                'message': 'Role already exists or failed to create'
+            }, 400)
+            
+        except Exception as e:
+            return ({'success': False, 'message': str(e)}, 500)

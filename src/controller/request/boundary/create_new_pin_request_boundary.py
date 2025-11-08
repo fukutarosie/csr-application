@@ -17,5 +17,7 @@ def create_new_request():
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     payload = request.get_json()
     
-    response, status = CreateNewPINRequestController.create_new_request(auth_token, payload)
+    # TRUE OOP: Create controller object, call instance method
+    controller = CreateNewPINRequestController(auth_token, payload)
+    response, status = controller.execute()
     return jsonify(response), status

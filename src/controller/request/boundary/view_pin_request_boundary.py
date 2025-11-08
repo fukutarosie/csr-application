@@ -1,7 +1,7 @@
 """ViewPINRequest Boundary - HTTP layer for viewing PIN requests"""
 
 from flask import Blueprint, request, jsonify
-from src.controller.request.view_pin_request_controller import ViewPINRequestController
+from src.controller.request.view_pin_request_controller import ViewPINRequestsController, ViewPINRequestDetailController
 
 view_pin_request_boundary = Blueprint(
     'view_pin_request',
@@ -15,7 +15,8 @@ def get_requests():
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     status_param = request.args.get('status', '').strip() or None
     
-    response, status = ViewPINRequestController.get_requests(auth_token, status_param)
+    controller = ViewPINRequestsController(auth_token, status_param)
+    response, status = controller.execute()
     return jsonify(response), status
 
 @view_pin_request_boundary.route('/<int:request_id>', methods=['GET'])
@@ -23,5 +24,6 @@ def get_request_detail(request_id):
     """Get single request detail"""
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     
-    response, status = ViewPINRequestController.get_request_detail(auth_token, request_id)
+    controller = ViewPINRequestDetailController(auth_token, request_id)
+    response, status = controller.execute()
     return jsonify(response), status

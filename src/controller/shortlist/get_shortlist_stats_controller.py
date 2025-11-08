@@ -1,38 +1,51 @@
 """
-Get Shortlist Statistics Controller - CSR views volunteering statistics (Control Layer)
+Get Shortlist Statistics Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.shortlist import Shortlist
 from src.entity import User
 from src.utils.helpers import ResponseHelpers
 
+
 class GetShortlistStatsController:
     """
-    Get CSR's volunteering statistics
+    Get Shortlist Statistics Controller - TRUE OOP
+    
+    Usage:
+        controller = GetShortlistStatsController(auth_token)
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def get_stats(auth_token):
-        """
-        Get CSR's statistics
-        
-        Returns: (response_dict, status_code)
-        """
+    def __init__(self, auth_token: str):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.user = None
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute statistics retrieval"""
         try:
-            # Verify token and get user
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
-            csr_user_id = user_data['id']
+            # Get all shortlist items for this CSR user
+            shortlist_items = Shortlist.by_csr_user(self.user.id)
             
-            # Call ENTITY layer
-            stats = Shortlist.get_statistics(csr_user_id=csr_user_id)
+            # Calculate statistics
+            stats = {
+                'total_shortlisted': len(shortlist_items),
+                'in_progress': len([s for s in shortlist_items if s.status == 'IN_PROGRESS']),
+                'completed': len([s for s in shortlist_items if s.status == 'COMPLETED']),
+                'shortlisted': len([s for s in shortlist_items if s.status == 'SHORTLISTED']),
+                'total_hours': sum(s.volunteered_hours or 0 for s in shortlist_items if s.volunteered_hours)
+            }
             
-            if stats is None:
-                return (ResponseHelpers.error_response('Failed to retrieve statistics', 400), 400)
-            
-            # Return response
             return (ResponseHelpers.success_response(
                 data=stats,
                 message='Statistics retrieved successfully'

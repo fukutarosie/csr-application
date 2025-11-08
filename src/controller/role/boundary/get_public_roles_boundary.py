@@ -8,5 +8,6 @@ get_public_roles_boundary = Blueprint('get_public_roles', __name__)
 @get_public_roles_boundary.route('/api/roles/public', methods=['GET'])
 def get_public_roles():
     """Get all roles - Public endpoint"""
-    response, status = GetPublicRolesController.get_public_roles()
+    controller = GetPublicRolesController()
+    response, status = controller.execute()
     return jsonify(response), status

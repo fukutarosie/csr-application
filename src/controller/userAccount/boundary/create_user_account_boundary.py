@@ -14,7 +14,9 @@ def create():
     """Create a new user account"""
     try:
         payload = request.get_json()
-        response, status = CreateUserAccountController.create(payload)
+        # TRUE OOP: Create controller object, call instance method
+        controller = CreateUserAccountController(payload)
+        response, status = controller.execute()
         return jsonify(response), status
     except Exception as exc:
         return jsonify({

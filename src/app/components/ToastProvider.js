@@ -10,7 +10,8 @@ export function ToastProvider({ children }) {
   const push = useCallback(({ type = 'success', message = '', timeout = 4500 }) => {
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
     const toast = { id, type, message, timeout };
-    setToasts((s) => [...s, toast]);
+    // Limit to a single toast at a time for cleaner UX
+    setToasts([toast]);
     return id;
   }, []);
 

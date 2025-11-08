@@ -1,33 +1,61 @@
-"""SuspendPINRequestController - Handles PIN user request suspension (Control Layer)"""
+"""
+Suspend PIN Request Controller - TRUE OOP Implementation
+"""
 
+from typing import Dict, Tuple
 from src.entity.request import Request
 from src.entity import User
 
+
 class SuspendPINRequestController:
-    @staticmethod
-    def suspend_request(auth_token, request_id, data):
-        """Suspend a request (mark as no longer needed)"""
+    """
+    Suspend PIN Request Controller - TRUE OOP
+    
+    Usage:
+        controller = SuspendPINRequestController(auth_token, request_id, data)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, auth_token: str, request_id: int, data: Dict):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.request_id = request_id
+        self.data = data
+        self.user = None
+        self.request = None
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute request suspension"""
         try:
-            # Get authenticated user from token
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return ({'success': False, 'message': 'Unauthorized'}, 401)
             
-            pin_user_id = user_data['id']
-            reason = data.get('reason', '').strip()
+            # Load Request object
+            self.request = Request.find(self.request_id)
+            if not self.request:
+                return ({'success': False, 'message': 'Request not found'}, 404)
             
-            suspended_request = Request.suspend_request(
-                request_id=request_id,
-                pin_user_id=pin_user_id,
-                reason=reason if reason else None
-            )
+            # Verify ownership
+            if self.request.pin_user_id != self.user.id:
+                return ({'success': False, 'message': 'Unauthorized'}, 403)
             
-            if not suspended_request:
-                return ({'success': False, 'message': 'Failed to suspend request. Request not found, not owned by you, or not ACTIVE.'}, 400)
+            # Verify status is ACTIVE
+            if self.request.status != Request.STATUS_ACTIVE:
+                return ({'success': False, 'message': 'Only ACTIVE requests can be suspended'}, 400)
+            
+            # Suspend request (instance method)
+            reason = self.data.get('reason', '').strip() if self.data else None
+            self.request.suspend(reason)
             
             return ({
                 'success': True,
-                'data': suspended_request,
+                'data': self.request.to_dict(),
                 'message': 'Request suspended successfully'
             }, 200)
             

@@ -17,5 +17,6 @@ def update_request(request_id):
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     payload = request.get_json()
     
-    response, status = UpdatePINRequestController.update_request(auth_token, request_id, payload)
+    controller = UpdatePINRequestController(auth_token, request_id, payload)
+    response, status = controller.execute()
     return jsonify(response), status

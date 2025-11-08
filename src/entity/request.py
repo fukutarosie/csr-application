@@ -1,26 +1,40 @@
 """
-Request Entity Class - PIN /CSR System
-Handles all database operations for PIN requests
-Part of the CONTROL/ENTITY layer (BCE Architecture)
-
-Methods:
-- create_request() - Create new request
-- get_request() - Retrieve single request
-- get_requests_by_pin_user() - Get all requests from a PIN user
-- update_request() - Update request details
-- suspend_request() - Suspend a request
-- search_requests() - Search with filters
-- fulfill_request() - Mark as fulfilled
-- delete_request() - Hard delete (admin only)
+Request Entity Class - TRUE OOP Implementation
+Holds request data in memory and performs operations on itself
 """
 
 from typing import Dict, List, Optional
 from datetime import datetime
-from .supabase_config import get_supabase
+from .supabase_config import get_supabase, execute_with_retry
 
 
 class Request:
-    """Request entity - handles PIN user requests"""
+    """
+    Request Entity - TRUE OOP Implementation
+    
+    This class implements proper OOP:
+    - Objects hold data in memory (instance variables)
+    - Instance methods do the actual work (not wrappers)
+    - Factory methods (class methods) for querying
+    - No static methods for business logic
+    
+    Usage:
+        # Create new request
+        request = Request()
+        request.pin_user_id = 42
+        request.title = 'Need grocery shopping help'
+        request.description = 'Heavy groceries, need help carrying'
+        request.service_type = 'Grocery Shopping'
+        request.region = 'Hougang'
+        request.requested_by_date = '2025-12-31'
+        request.image_url = '/uploads/requests/image.jpg'
+        request.save()  # Instance method does the work
+        
+        # Load existing request
+        request = Request.find(1)
+        request.status = 'FULFILLED'
+        request.save()  # Updates database
+    """
     
     # Request statuses
     STATUS_ACTIVE = 'ACTIVE'
@@ -30,696 +44,648 @@ class Request:
     
     VALID_STATUSES = [STATUS_ACTIVE, STATUS_SUSPENDED, STATUS_FULFILLED, STATUS_CANCELLED]
     
-    @staticmethod
-    def create_request(
-        pin_user_id: int,
-        title: str,
-        description: str,
-        service_type: str,
-        region: str,
-        requested_by_date: str,
-        image_url: str
-    ) -> Optional[Dict]:
+    def __init__(self, request_id: Optional[int] = None, request_data: Optional[Dict] = None):
         """
-        Create a new request
+        Initialize a Request instance
         
         Args:
-            pin_user_id: User ID of the PIN user (must have PIN role)
-            title: Request title (required, min 5 characters)
-            description: Request description (required, min 10 characters)
-            service_type: Service type (required, must exist in service_types)
-            region: Region where help needed (required, e.g., Hougang, Sengkang)
-            requested_by_date: Date help is needed (required)
-            image_url: URL path to uploaded image (required)
+            request_id: Load existing request from database by ID
+            request_data: Initialize with existing request data
             
-        Returns:
-            Created request dict with id, or None if failed
+        Example:
+            request = Request(request_id=1)
+            request = Request(request_data={...})
+            request = Request()  # Create new
         """
+        # Instance variables (object state - data in memory)
+        self.id: Optional[int] = None
+        self.pin_user_id: Optional[int] = None
+        self.title: Optional[str] = None
+        self.description: Optional[str] = None
+        self.service_type: Optional[str] = None
+        self.region: Optional[str] = None
+        self.requested_by_date: Optional[str] = None
+        self.image_url: Optional[str] = None
+        self.status: str = Request.STATUS_ACTIVE
+        self.is_archived: bool = False
+        self.view_count: int = 0
+        self.shortlist_count: int = 0
+        self.created_at: Optional[str] = None
+        self.updated_at: Optional[str] = None
+        self.fulfilled_at: Optional[str] = None
+        self.suspended_at: Optional[str] = None
+        
+        # Load data if provided
+        if request_id is not None:
+            self._load_from_id(request_id)
+        elif request_data is not None:
+            self._load_from_dict(request_data)
+    
+    # ============================================================================
+    # PRIVATE METHODS (Internal use only)
+    # ============================================================================
+    
+    def _load_from_id(self, request_id: int) -> None:
+        """Load request data from database by ID (private method)"""
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .select('*')
+            .eq('id', request_id)
+            .execute()
+        )
+        if result and result.data:
+            self._load_from_dict(result.data[0])
+    
+    def _load_from_dict(self, data: Dict) -> None:
+        """Populate instance variables from dictionary (private method)"""
+        self.id = data.get('id')
+        self.pin_user_id = data.get('pin_user_id')
+        self.title = data.get('title')
+        self.description = data.get('description')
+        self.service_type = data.get('service_type')
+        self.region = data.get('region')
+        self.requested_by_date = data.get('requested_by_date')
+        self.image_url = data.get('image_url')
+        self.status = data.get('status', Request.STATUS_ACTIVE)
+        self.is_archived = data.get('is_archived', False)
+        self.view_count = data.get('view_count', 0)
+        self.shortlist_count = data.get('shortlist_count', 0)
+        self.created_at = data.get('created_at')
+        self.updated_at = data.get('updated_at')
+        self.fulfilled_at = data.get('fulfilled_at')
+        self.suspended_at = data.get('suspended_at')
+    
+    # ============================================================================
+    # VALIDATION METHODS (Instance methods)
+    # ============================================================================
+    
+    def validate(self) -> tuple[bool, List[str]]:
+        """
+        Validate request object state
+        
+        Returns:
+            Tuple of (is_valid, list_of_errors)
+        """
+        errors = []
+        
+        if not self.pin_user_id:
+            errors.append('PIN user ID is required')
+        
+        if not self.title or len(self.title) < 5:
+            errors.append('Title must be at least 5 characters')
+        
+        if not self.description or len(self.description) < 10:
+            errors.append('Description must be at least 10 characters')
+        
+        if not self.service_type:
+            errors.append('Service type is required')
+        
+        if not self.region:
+            errors.append('Region is required')
+        
+        if not self.requested_by_date:
+            errors.append('Requested by date is required')
+        
+        if not self.image_url:
+            errors.append('Image is required')
+        
+        if self.status not in Request.VALID_STATUSES:
+            errors.append(f'Invalid status: {self.status}')
+        
+        return len(errors) == 0, errors
+    
+    def validate_pin_user(self) -> tuple[bool, Optional[str]]:
+        """
+        Validate that pin_user_id is a valid PIN user
+        
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not self.pin_user_id:
+            return False, 'PIN user ID is required'
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('users')
+            .select('id, role_id')
+            .eq('id', self.pin_user_id)
+            .execute()
+        )
+        
+        if not result or not result.data:
+            return False, 'User not found'
+        
+        if result.data[0]['role_id'] != 2:  # PIN role_id = 2
+            return False, 'User is not a PIN user'
+        
+        return True, None
+    
+    def validate_service_type(self) -> tuple[bool, Optional[str]]:
+        """
+        Validate that service_type exists in service_types table
+        
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        if not self.service_type:
+            return False, 'Service type is required'
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('service_types')
+            .select('id')
+            .eq('service_name', self.service_type)
+            .execute()
+        )
+        
+        if not result or not result.data:
+            return False, f'Invalid service type: {self.service_type}'
+        
+        return True, None
+    
+    # ============================================================================
+    # CRUD METHODS (Instance methods - do the actual work)
+    # ============================================================================
+    
+    def save(self) -> bool:
+        """
+        Save request to database (create or update)
+        Instance method that DOES THE ACTUAL WORK
+        
+        Returns:
+            True if successful
+            
+        Raises:
+            ValueError: If validation fails
+        """
+        # Validate
+        is_valid, errors = self.validate()
+        if not is_valid:
+            raise ValueError('; '.join(errors))
+        
+        # Validate PIN user (only for new requests)
+        if not self.id:
+            is_valid_user, error = self.validate_pin_user()
+            if not is_valid_user:
+                raise ValueError(error)
+            
+            # Validate service type
+            is_valid_service, error = self.validate_service_type()
+            if not is_valid_service:
+                raise ValueError(error)
+        
         supabase = get_supabase()
         
-        try:
-            # Validate user exists and is PIN role
-            user = supabase.table('users').select('id, role_id').eq('id', pin_user_id).execute()
-            if not user.data:
-                return None  # User not found
-            
-            if user.data[0]['role_id'] != 2:  # PIN role_id = 2
-                return None  # User is not PIN role
-            
-            # Validate required fields
-            if not title or not description or not service_type or not region or not requested_by_date or not image_url:
-                return None
-            
-            # Validate service_type (now required)
-            svc_check = supabase.table('service_types').select('id').eq('service_name', service_type).execute()
-            if not svc_check.data:
-                return None  # Invalid service type
-            
-            # Prepare data
-            request_data = {
-                'pin_user_id': pin_user_id,
-                'title': title,
-                'description': description,
-                'service_type': service_type,
-                'region': region,
-                'requested_by_date': requested_by_date,
-                'image_url': image_url,
-                'status': Request.STATUS_ACTIVE,
-                'is_archived': False,
-                'view_count': 0,
-                'shortlist_count': 0,
-                'created_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
+        if self.id:
+            # Update existing request
+            update_data = {
+                'title': self.title,
+                'description': self.description,
+                'service_type': self.service_type,
+                'region': self.region,
+                'requested_by_date': self.requested_by_date,
+                'image_url': self.image_url,
+                'status': self.status,
+                'is_archived': self.is_archived,
+                'updated_at': datetime.now().isoformat()
             }
             
-            # Insert
-            result = supabase.table('requests').insert(request_data).execute()
-            return result.data[0] if result.data else None
+            result = execute_with_retry(
+                lambda: supabase.table('requests')
+                .update(update_data)
+                .eq('id', self.id)
+                .execute()
+            )
             
-        except Exception as e:
-            print(f"Error creating request: {str(e)}")
-            return None
+            if result and result.data:
+                self.updated_at = result.data[0]['updated_at']
+        else:
+            # Create new request
+            insert_data = {
+                'pin_user_id': self.pin_user_id,
+                'title': self.title,
+                'description': self.description,
+                'service_type': self.service_type,
+                'region': self.region,
+                'requested_by_date': self.requested_by_date,
+                'image_url': self.image_url,
+                'status': self.status,
+                'is_archived': self.is_archived,
+                'view_count': self.view_count,
+                'shortlist_count': self.shortlist_count
+            }
+            
+            result = execute_with_retry(
+                lambda: supabase.table('requests')
+                .insert(insert_data)
+                .execute()
+            )
+            
+            if result and result.data:
+                # Update object with new ID and timestamps
+                self.id = result.data[0]['id']
+                self.created_at = result.data[0]['created_at']
+                self.updated_at = result.data[0]['updated_at']
+        
+        return True
     
-    @staticmethod
-    def get_request(request_id: int) -> Optional[Dict]:
+    def delete(self) -> bool:
         """
-        Get a single request by ID
+        Delete this request from database
+        
+        Returns:
+            True if successful
+            
+        Raises:
+            ValueError: If request has no ID
+        """
+        if not self.id:
+            raise ValueError('Cannot delete request without ID')
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .delete()
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        return bool(result and result.data)
+    
+    # ============================================================================
+    # STATUS METHODS (Instance methods)
+    # ============================================================================
+    
+    def suspend(self, reason: str = None) -> bool:
+        """
+        Suspend this request
         
         Args:
-            request_id: Request ID
+            reason: Optional reason for suspension
             
         Returns:
-            Request dict with all fields, or None if not found
+            True if successful
+        """
+        if not self.id:
+            raise ValueError('Cannot suspend request without ID')
+        
+        self.status = Request.STATUS_SUSPENDED
+        self.suspended_at = datetime.now().isoformat()
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .update({
+                'status': self.status,
+                'suspended_at': self.suspended_at,
+                'updated_at': datetime.now().isoformat()
+            })
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        # Log status change if history table exists
+        if result and result.data:
+            try:
+                execute_with_retry(
+                    lambda: supabase.table('request_status_history').insert({
+                        'request_id': self.id,
+                        'old_status': Request.STATUS_ACTIVE,
+                        'new_status': Request.STATUS_SUSPENDED,
+                        'reason': reason
+                    }).execute()
+                )
+            except Exception as e:
+                print(f"[WARNING] Failed to log status change: {str(e)}")
+        
+        return bool(result and result.data)
+    
+    def fulfill(self) -> bool:
+        """
+        Mark this request as fulfilled
+        
+        Returns:
+            True if successful
+        """
+        if not self.id:
+            raise ValueError('Cannot fulfill request without ID')
+        
+        old_status = self.status
+        self.status = Request.STATUS_FULFILLED
+        self.fulfilled_at = datetime.now().isoformat()
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .update({
+                'status': self.status,
+                'fulfilled_at': self.fulfilled_at,
+                'updated_at': datetime.now().isoformat()
+            })
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        # Log status change
+        if result and result.data:
+            try:
+                execute_with_retry(
+                    lambda: supabase.table('request_status_history').insert({
+                        'request_id': self.id,
+                        'old_status': old_status,
+                        'new_status': Request.STATUS_FULFILLED
+                    }).execute()
+                )
+            except Exception as e:
+                print(f"[WARNING] Failed to log status change: {str(e)}")
+        
+        return bool(result and result.data)
+    
+    def archive(self) -> bool:
+        """Archive this request"""
+        if not self.id:
+            raise ValueError('Cannot archive request without ID')
+        
+        self.is_archived = True
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .update({
+                'is_archived': True,
+                'updated_at': datetime.now().isoformat()
+            })
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        return bool(result and result.data)
+    
+    # ============================================================================
+    # COUNTER METHODS (Instance methods)
+    # ============================================================================
+    
+    def increment_view_count(self) -> bool:
+        """Increment view count for this request"""
+        if not self.id:
+            return False
+        
+        self.view_count += 1
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .update({'view_count': self.view_count})
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        return bool(result and result.data)
+    
+    def increment_shortlist_count(self) -> bool:
+        """Increment shortlist count for this request"""
+        if not self.id:
+            return False
+        
+        self.shortlist_count += 1
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .update({'shortlist_count': self.shortlist_count})
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        return bool(result and result.data)
+    
+    def decrement_shortlist_count(self) -> bool:
+        """Decrement shortlist count for this request"""
+        if not self.id:
+            return False
+        
+        self.shortlist_count = max(0, self.shortlist_count - 1)
+        
+        supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .update({'shortlist_count': self.shortlist_count})
+            .eq('id', self.id)
+            .execute()
+        )
+        
+        return bool(result and result.data)
+    
+    # ============================================================================
+    # UTILITY METHODS (Instance methods)
+    # ============================================================================
+    
+    def to_dict(self) -> Dict:
+        """Convert instance to dictionary (for API responses)"""
+        return {
+            'id': self.id,
+            'pin_user_id': self.pin_user_id,
+            'title': self.title,
+            'description': self.description,
+            'service_type': self.service_type,
+            'region': self.region,
+            'requested_by_date': self.requested_by_date,
+            'image_url': self.image_url,
+            'status': self.status,
+            'is_archived': self.is_archived,
+            'view_count': self.view_count,
+            'shortlist_count': self.shortlist_count,
+            'created_at': self.created_at,
+            'updated_at': self.updated_at,
+            'fulfilled_at': self.fulfilled_at,
+            'suspended_at': self.suspended_at
+        }
+    
+    # ============================================================================
+    # MAGIC METHODS (OOP features)
+    # ============================================================================
+    
+    def __str__(self) -> str:
+        """String representation"""
+        return f"Request({self.title})"
+    
+    def __repr__(self) -> str:
+        """Developer-friendly representation"""
+        return f"Request(id={self.id}, title='{self.title}', status='{self.status}')"
+    
+    def __eq__(self, other) -> bool:
+        """Equality comparison"""
+        if not isinstance(other, Request):
+            return False
+        return self.id == other.id
+    
+    def __hash__(self) -> int:
+        """Make hashable"""
+        return hash(self.id) if self.id else hash(id(self))
+    
+    # ============================================================================
+    # FACTORY METHODS (Class methods that return Request objects)
+    # ============================================================================
+    
+    @classmethod
+    def find(cls, request_id: int) -> Optional['Request']:
+        """
+        Factory method: Find and return a Request instance by ID
+        
+        Args:
+            request_id: Request ID to find
+            
+        Returns:
+            Request object or None if not found
+        """
+        return cls(request_id=request_id) if request_id else None
+    
+    @classmethod
+    def all(cls, include_archived: bool = False) -> List['Request']:
+        """
+        Factory method: Get all requests as Request instances
+        
+        Args:
+            include_archived: Whether to include archived requests
+            
+        Returns:
+            List of Request objects
         """
         supabase = get_supabase()
+        query = supabase.table('requests').select('*')
         
-        try:
-            result = supabase.table('requests').select(
-                "*",
-                "users(id, username, full_name, email)"
-            ).eq('id', request_id).execute()
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error getting request: {str(e)}")
-            return None
+        if not include_archived:
+            query = query.eq('is_archived', False)
+        
+        result = execute_with_retry(lambda: query.execute())
+        
+        if result and result.data:
+            return [cls(request_data=data) for data in result.data]
+        return []
     
-    @staticmethod
-    def get_requests_by_pin_user(pin_user_id: int, status: str = None) -> List[Dict]:
+    @classmethod
+    def by_pin_user(cls, pin_user_id: int) -> List['Request']:
         """
-        Get all requests created by a PIN user
+        Factory method: Get requests by PIN user
         
         Args:
             pin_user_id: PIN user ID
-            status: Optional filter by status (ACTIVE, SUSPENDED, etc.)
             
         Returns:
-            List of requests
+            List of Request objects
         """
         supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .select('*')
+            .eq('pin_user_id', pin_user_id)
+            .execute()
+        )
         
-        try:
-            query = supabase.table('requests').select(
-                "*",
-                "users(id, username, full_name)"
-            ).eq('pin_user_id', pin_user_id)
-            
-            if status:
-                query = query.eq('status', status)
-            
-            result = query.order('created_at', desc=True).execute()
-            return result.data if result.data else []
-            
-        except Exception as e:
-            print(f"Error getting requests by PIN user: {str(e)}")
-            return []
+        if result and result.data:
+            return [cls(request_data=data) for data in result.data]
+        return []
     
-    @staticmethod
-    def get_all_requests(status: str = None) -> List[Dict]:
+    @classmethod
+    def by_status(cls, status: str) -> List['Request']:
         """
-        Get all requests in the system (for CSR Rep and Platform Manager)
+        Factory method: Get requests by status
         
         Args:
-            status: Optional filter by status (ACTIVE, SUSPENDED, etc.)
+            status: Request status
             
         Returns:
-            List of requests
+            List of Request objects
         """
         supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('requests')
+            .select('*')
+            .eq('status', status)
+            .eq('is_archived', False)
+            .execute()
+        )
         
-        try:
-            query = supabase.table('requests').select(
-                "*",
-                "users(id, username, full_name)"
-            )
-            
-            if status:
-                query = query.eq('status', status)
-            
-            result = query.order('created_at', desc=True).execute()
-            return result.data if result.data else []
-            
-        except Exception as e:
-            print(f"Error getting all requests: {str(e)}")
-            return []
+        if result and result.data:
+            return [cls(request_data=data) for data in result.data]
+        return []
     
-    @staticmethod
-    def update_request(
-        request_id: int,
-        pin_user_id: int,
-        updates: Dict
-    ) -> Optional[Dict]:
+    @classmethod
+    def search(cls, 
+               service_type: str = None,
+               region: str = None,
+               status: str = None,
+               pin_user_id: int = None) -> List['Request']:
         """
-        Update a request (only by the owner)
+        Factory method: Search requests by multiple criteria
         
         Args:
-            request_id: Request ID
-            pin_user_id: PIN user ID (must be the owner)
-            updates: Dict with fields to update
-            
-        Returns:
-            Updated request dict, or None if failed
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Verify ownership and request is ACTIVE
-            current = supabase.table('requests').select('pin_user_id, status').eq('id', request_id).execute()
-            if not current.data:
-                return None  # Request not found
-            
-            req = current.data[0]
-            if req['pin_user_id'] != pin_user_id:
-                return None  # Not the owner
-            
-            if req['status'] != Request.STATUS_ACTIVE:
-                return None  # Can only edit ACTIVE requests
-            
-            # Validate service_type if being updated
-            if 'service_type' in updates and updates['service_type']:
-                svc_check = supabase.table('service_types').select('id').eq('service_name', updates['service_type']).execute()
-                if not svc_check.data:
-                    return None
-            
-            # Add updated_at timestamp
-            updates['updated_at'] = datetime.utcnow().isoformat()
-            
-            # Update
-            result = supabase.table('requests').update(updates).eq('id', request_id).execute()
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error updating request: {str(e)}")
-            return None
-    
-    @staticmethod
-    def suspend_request(request_id: int, pin_user_id: int, reason: str = None) -> Optional[Dict]:
-        """
-        Suspend a request (mark as no longer needed)
-        
-        Args:
-            request_id: Request ID
-            pin_user_id: PIN user ID (must be the owner)
-            reason: Reason for suspension
-            
-        Returns:
-            Updated request dict, or None if failed
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Verify ownership and current status
-            current = supabase.table('requests').select('pin_user_id, status').eq('id', request_id).execute()
-            if not current.data:
-                print(f"Request {request_id} not found")
-                return None
-            
-            if current.data[0]['pin_user_id'] != pin_user_id:
-                print(f"Request {request_id} not owned by user {pin_user_id}")
-                return None  # Not the owner
-            
-            if current.data[0]['status'] != Request.STATUS_ACTIVE:
-                print(f"Request {request_id} is not ACTIVE (status: {current.data[0]['status']})")
-                return None  # Can only suspend ACTIVE requests
-            
-            # Update status to SUSPENDED
-            result = supabase.table('requests').update({
-                'status': Request.STATUS_SUSPENDED,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', request_id).execute()
-            
-            # Record in audit trail if available
-            if result.data:
-                try:
-                    Request._record_status_change(
-                        request_id=request_id,
-                        old_status=current.data[0]['status'],
-                        new_status=Request.STATUS_SUSPENDED,
-                        changed_by=pin_user_id,
-                        reason=reason
-                    )
-                except Exception as audit_error:
-                    print(f"Audit trail failed (non-critical): {str(audit_error)}")
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error suspending request: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            return None
-            return None
-    
-    @staticmethod
-    def fulfill_request(request_id: int) -> Optional[Dict]:
-        """
-        Mark request as fulfilled (admin/system only)
-        
-        Args:
-            request_id: Request ID
-            
-        Returns:
-            Updated request dict, or None if failed
-        """
-        supabase = get_supabase()
-        
-        try:
-            current = supabase.table('requests').select('status').eq('id', request_id).execute()
-            if not current.data:
-                return None
-            
-            result = supabase.table('requests').update({
-                'status': Request.STATUS_FULFILLED,
-                'fulfilled_at': datetime.utcnow().isoformat(),
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', request_id).execute()
-            
-            # Record in audit trail
-            if result.data:
-                Request._record_status_change(
-                    request_id=request_id,
-                    old_status=current.data[0]['status'],
-                    new_status=Request.STATUS_FULFILLED,
-                    changed_by=None,
-                    reason='Marked as fulfilled'
-                )
-            
-            return result.data[0] if result.data else None
-            
-        except Exception as e:
-            print(f"Error fulfilling request: {str(e)}")
-            return None
-    
-    @staticmethod
-    def search_requests(
-        keyword: str = None,
-        category: str = None,
-        status: str = None,
-        priority: str = None,
-        service_type: str = None,
-        limit: int = 50,
-        offset: int = 0
-    ) -> List[Dict]:
-        """
-        Search requests with filters (for CSR to find opportunities)
-        
-        Args:
-            keyword: Search in title/description
-            category: Filter by category
-            status: Filter by status (default: ACTIVE only)
-            priority: Filter by priority
             service_type: Filter by service type
-            limit: Max results
-            offset: Pagination offset
+            region: Filter by region
+            status: Filter by status
+            pin_user_id: Filter by PIN user
             
         Returns:
-            List of matching requests
+            List of Request objects matching criteria
         """
         supabase = get_supabase()
+        query = supabase.table('requests').select('*').eq('is_archived', False)
         
-        try:
-            # Start with ACTIVE requests by default (for CSR to see opportunities)
-            if status is None:
-                status = Request.STATUS_ACTIVE
-            
-            query = supabase.table('requests').select(
-                "*",
-                "users(id, username, full_name)"
-            ).eq('status', status)
-            
-            # Apply filters
-            if category:
-                query = query.eq('category', category)
-            if priority:
-                query = query.eq('priority', priority)
-            if service_type:
-                query = query.eq('service_type', service_type)
-            
-            result = query.order('priority', desc=True).order('created_at', desc=True).range(offset, offset + limit).execute()
-            
-            # If keyword search, filter results in memory (Supabase full-text search alternative)
-            if keyword:
-                keyword_lower = keyword.lower()
-                result.data = [
-                    req for req in (result.data or [])
-                    if keyword_lower in req['title'].lower() or keyword_lower in req['description'].lower()
-                ]
-            
-            return result.data if result.data else []
-            
-        except Exception as e:
-            print(f"Error searching requests: {str(e)}")
-            return []
+        if service_type:
+            query = query.eq('service_type', service_type)
+        if region:
+            query = query.eq('region', region)
+        if status:
+            query = query.eq('status', status)
+        if pin_user_id:
+            query = query.eq('pin_user_id', pin_user_id)
+        
+        result = execute_with_retry(lambda: query.execute())
+        
+        if result and result.data:
+            return [cls(request_data=data) for data in result.data]
+        return []
     
-    @staticmethod
-    def get_active_requests_count() -> int:
-        """Get count of ACTIVE requests"""
-        supabase = get_supabase()
-        try:
-            result = supabase.table('requests').select('id', count='exact').eq('status', Request.STATUS_ACTIVE).execute()
-            return result.count if hasattr(result, 'count') else 0
-        except Exception as e:
-            print(f"Error counting active requests: {str(e)}")
-            return 0
-    
-    @staticmethod
-    def get_request_by_pin_user_count(pin_user_id: int) -> int:
-        """Get count of requests created by a PIN user"""
-        supabase = get_supabase()
-        try:
-            result = supabase.table('requests').select('id', count='exact').eq('pin_user_id', pin_user_id).execute()
-            return result.count if hasattr(result, 'count') else 0
-        except Exception as e:
-            print(f"Error counting user requests: {str(e)}")
-            return 0
-    
-    @staticmethod
-    def delete_request(request_id: int) -> bool:
-        """
-        Delete a request (admin only)
-        
-        Args:
-            request_id: Request ID
-            
-        Returns:
-            True if deleted, False if failed
-        """
-        supabase = get_supabase()
-        
-        try:
-            supabase.table('requests').delete().eq('id', request_id).execute()
-            return True
-        except Exception as e:
-            print(f"Error deleting request: {str(e)}")
-            return False
-    
-    @staticmethod
-    def _record_status_change(
-        request_id: int,
-        old_status: str,
-        new_status: str,
-        changed_by: int = None,
-        reason: str = None
-    ) -> bool:
-        """
-        Record status change in audit trail
-        
-        Args:
-            request_id: Request ID
-            old_status: Previous status
-            new_status: New status
-            changed_by: User ID who made the change
-            reason: Reason for change
-            
-        Returns:
-            True if recorded, False if failed
-        """
-        supabase = get_supabase()
-        
-        try:
-            supabase.table('request_status_history').insert({
-                'request_id': request_id,
-                'old_status': old_status,
-                'new_status': new_status,
-                'changed_by': changed_by,
-                'reason': reason,
-                'changed_at': datetime.utcnow().isoformat()
-            }).execute()
-            return True
-        except Exception as e:
-            print(f"Error recording status change: {str(e)}")
-            return False
-    
-    # ===== ANALYTICS METHODS (US-27, US-28) =====
-    
-    @staticmethod
-    def get_request_analytics(request_id: int) -> Optional[Dict]:
-        """
-        Get analytics for a specific request (view count, shortlist count).
-        Supports US-27 and US-28.
-        
-        Args:
-            request_id: Request ID
-        
-        Returns:
-            {
-                'request_id': int,
-                'view_count': int,
-                'shortlist_count': int,
-                'title': str
-            } or None if not found
-        """
-        supabase = get_supabase()
-        
-        try:
-            result = supabase.table('requests').select("id, title, view_count, shortlist_count").eq('id', request_id).execute()
-            
-            if result.data:
-                request = result.data[0]
-                return {
-                    'request_id': request['id'],
-                    'title': request['title'],
-                    'view_count': request.get('view_count', 0),
-                    'shortlist_count': request.get('shortlist_count', 0)
-                }
-            
-            return None
-            
-        except Exception as e:
-            print(f"Error getting analytics for request {request_id}: {str(e)}")
-            return None
-    
-    @staticmethod
-    def increment_view_count(request_id: int) -> bool:
-        """
-        Increment view count when a CSR views the request.
-        Called by CSR controller when viewing request details.
-        
-        Args:
-            request_id: Request ID
-        
-        Returns:
-            True on success, False on failure
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Get current view count
-            request = Request.get_request(request_id)
-            if not request:
-                return False
-            
-            current_count = request.get('view_count', 0)
-            
-            # Increment by 1
-            result = supabase.table('requests').update({
-                'view_count': current_count + 1,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', request_id).execute()
-            
-            return bool(result.data)
-            
-        except Exception as e:
-            print(f"Error incrementing view count for request {request_id}: {str(e)}")
-            return False
-    
-    @staticmethod
-    def increment_shortlist_count(request_id: int) -> bool:
-        """
-        Increment shortlist count when a CSR adds request to shortlist.
-        Called by Shortlist entity when adding to shortlist.
-        
-        Args:
-            request_id: Request ID
-        
-        Returns:
-            True on success, False on failure
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Get current shortlist count
-            request = Request.get_request(request_id)
-            if not request:
-                return False
-            
-            current_count = request.get('shortlist_count', 0)
-            
-            # Increment by 1
-            result = supabase.table('requests').update({
-                'shortlist_count': current_count + 1,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', request_id).execute()
-            
-            return bool(result.data)
-            
-        except Exception as e:
-            print(f"Error incrementing shortlist count for request {request_id}: {str(e)}")
-            return False
-    
-    @staticmethod
-    def decrement_shortlist_count(request_id: int) -> bool:
-        """
-        Decrement shortlist count when a CSR removes request from shortlist.
-        Called by Shortlist entity when removing from shortlist.
-        
-        Args:
-            request_id: Request ID
-        
-        Returns:
-            True on success, False on failure
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Get current shortlist count
-            request = Request.get_request(request_id)
-            if not request:
-                return False
-            
-            current_count = request.get('shortlist_count', 0)
-            
-            # Decrement by 1 (but don't go below 0)
-            new_count = max(0, current_count - 1)
-            
-            result = supabase.table('requests').update({
-                'shortlist_count': new_count,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('id', request_id).execute()
-            
-            return bool(result.data)
-            
-        except Exception as e:
-            print(f"Error decrementing shortlist count for request {request_id}: {str(e)}")
-            return False
-    
-    # ===== COMPLETED MATCHES (US-29, US-30) =====
-    
-    @staticmethod
-    def get_completed_matches(user_id: int, filters: Dict = None, page: int = 1, limit: int = 10) -> Dict:
-        """
-        Get completed matches for a PIN user (requests that have been fulfilled).
-        Supports US-29 and US-30.
-        
-        Args:
-            user_id: PIN user ID
-            filters: Optional filters:
-                - start_date: Filter by fulfilled_at >= start_date
-                - end_date: Filter by fulfilled_at <= end_date
-            page: Page number (1-indexed)
-            limit: Results per page
-        
-        Returns:
-            {
-                'data': [requests with shortlist details],
-                'pagination': {
-                    'page': int,
-                    'limit': int,
-                    'total': int,
-                    'total_pages': int
-                }
-            }
-        """
-        supabase = get_supabase()
-        
-        try:
-            # Build query for FULFILLED requests
-            query = supabase.table('requests').select("*", count='exact').eq('pin_user_id', user_id).eq('status', 'FULFILLED')
-            
-            # Apply date filters
-            if filters:
-                if filters.get('start_date'):
-                    query = query.gte('fulfilled_at', filters['start_date'])
-                if filters.get('end_date'):
-                    query = query.lte('fulfilled_at', filters['end_date'])
-            
-            # Get total count
-            count_result = query.execute()
-            total = count_result.count if hasattr(count_result, 'count') else len(count_result.data)
-            
-            # Apply pagination
-            offset = (page - 1) * limit
-            query = query.order('fulfilled_at', desc=True).range(offset, offset + limit - 1)
-            
-            # Execute query
-            result = query.execute()
-            
-            # For each completed request, get the associated shortlist entry (CSR who helped)
-            completed_requests = []
-            for request in result.data:
-                # Get shortlist entries for this request (status = COMPLETED)
-                shortlist_result = supabase.table('shortlist').select("*").eq('request_id', request['id']).eq('status', 'COMPLETED').execute()
-                
-                request['matched_csr'] = shortlist_result.data if shortlist_result.data else []
-                completed_requests.append(request)
-            
-            return {
-                'data': completed_requests,
-                'pagination': {
-                    'page': page,
-                    'limit': limit,
-                    'total': total,
-                    'total_pages': (total + limit - 1) // limit
-                }
-            }
-            
-        except Exception as e:
-            print(f"Error getting completed matches for user {user_id}: {str(e)}")
-            return {'data': [], 'pagination': {'page': page, 'limit': limit, 'total': 0, 'total_pages': 0}}
-    
-    # ===== LOOKUP TABLES =====
-    
-    @staticmethod
-    def get_request_categories() -> List[Dict]:
-        """
-        Get all available request categories.
-        
-        Returns:
-            List of category dicts
-        """
-        supabase = get_supabase()
-        
-        try:
-            result = supabase.table('request_categories').select("*").order('category_name').execute()
-            return result.data if result.data else []
-        except Exception as e:
-            print(f"Error getting request categories: {str(e)}")
-            return []
+    # ============================================================================
+    # STATIC METHODS (Utility methods that don't need instance or class state)
+    # ============================================================================
     
     @staticmethod
     def get_service_types() -> List[Dict]:
         """
-        Get all available service types.
+        Get all service types from database
         
         Returns:
-            List of service type dicts
+            List of service type dictionaries
         """
         supabase = get_supabase()
+        result = execute_with_retry(
+            lambda: supabase.table('service_types')
+            .select('*')
+            .execute()
+        )
         
-        try:
-            result = supabase.table('service_types').select("*").order('service_name').execute()
-            return result.data if result.data else []
-        except Exception as e:
-            print(f"Error getting service types: {str(e)}")
-            return []
+        if result and result.data:
+            return result.data
+        return []
+    
+    @staticmethod
+    def get_categories() -> List[str]:
+        """
+        Get all unique categories from requests
+        
+        Returns:
+            List of category strings
+        """
+        # For now, return predefined categories
+        # In future, could query database for unique values
+        return [
+            'Healthcare',
+            'Education',
+            'Transportation',
+            'Food & Nutrition',
+            'Housing',
+            'Social Services',
+            'Other'
+        ]

@@ -13,7 +13,8 @@ create_user_profile_boundary = Blueprint('create_user_profile', __name__, url_pr
 def create_user_profile():
     try:
         payload = request.get_json()
-        response, status = CreateUserProfileController.create_user_profile(payload)
+        controller = CreateUserProfileController(payload)
+        response, status = controller.execute()
         return jsonify(response), status
     except Exception as exc:
         return jsonify({

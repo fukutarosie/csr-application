@@ -1,92 +1,127 @@
-"""SearchPINRequestController - Handles PIN user request search (Control Layer)"""
+"""
+Search PIN Request Controller - TRUE OOP Implementation
+"""
 
+from typing import Dict, Tuple, List
 from src.entity.request import Request
 from src.entity import User
 
+
 class SearchPINRequestController:
-    @staticmethod
-    def search_requests(auth_token, keyword, category, status, priority, service_type, my_requests):
-        """Search and filter requests"""
+    """
+    Search PIN Request Controller - TRUE OOP
+    
+    Usage:
+        controller = SearchPINRequestController(auth_token, keyword, category, status, priority, service_type, my_requests)
+        response, status = controller.execute()
+    """
+    
+    VALID_STATUSES = ['ACTIVE', 'SUSPENDED', 'FULFILLED', 'CANCELLED']
+    VALID_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
+    
+    def __init__(self, auth_token: str, keyword: str = None, category: str = None, 
+                 status: str = None, priority: str = None, service_type: str = None, 
+                 my_requests: bool = False):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.keyword = keyword
+        self.category = category
+        self.status = status
+        self.priority = priority
+        self.service_type = service_type
+        self.my_requests = my_requests
+        self.user = None
+        self.requests = []
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def validate_filters(self) -> Tuple[bool, str]:
+        """Validate filter parameters"""
+        if self.status and self.status not in self.VALID_STATUSES:
+            return False, f'Invalid status. Must be one of: {", ".join(self.VALID_STATUSES)}'
+        
+        if self.priority and self.priority not in self.VALID_PRIORITIES:
+            return False, f'Invalid priority. Must be one of: {", ".join(self.VALID_PRIORITIES)}'
+        
+        return True, ''
+    
+    def apply_filters(self, requests: List[Request]) -> List[Request]:
+        """Apply filters to request list"""
+        filtered = []
+        for req in requests:
+            # Keyword filter
+            if self.keyword:
+                keyword_lower = self.keyword.lower()
+                if keyword_lower not in req.title.lower() and keyword_lower not in req.description.lower():
+                    continue
+            
+            # Category filter
+            if self.category and req.category != self.category:
+                continue
+            
+            # Priority filter
+            if self.priority and req.priority != self.priority:
+                continue
+            
+            # Service type filter
+            if self.service_type and req.service_type != self.service_type:
+                continue
+            
+            filtered.append(req)
+        
+        return filtered
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute request search"""
         try:
-            # Get authenticated user from token
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return ({'success': False, 'message': 'Unauthorized'}, 401)
             
-            pin_user_id = user_data['id']
+            # Validate filters
+            is_valid, error_msg = self.validate_filters()
+            if not is_valid:
+                return ({'success': False, 'message': error_msg}, 400)
             
-            # Validate status if provided
-            valid_statuses = ['ACTIVE', 'SUSPENDED', 'FULFILLED', 'CANCELLED']
-            if status and status not in valid_statuses:
-                return ({'success': False, 'message': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}, 400)
-            
-            # Validate priority if provided
-            valid_priorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT']
-            if priority and priority not in valid_priorities:
-                return ({'success': False, 'message': f'Invalid priority. Must be one of: {", ".join(valid_priorities)}'}, 400)
-            
-            # For PIN users, always search own requests
-            if my_requests:
-                results = Request.get_requests_by_pin_user(pin_user_id=pin_user_id, status=status)
-                
-                filtered_results = []
-                for req in results:
-                    if keyword:
-                        if keyword.lower() not in req.get('title', '').lower() and \
-                           keyword.lower() not in req.get('description', '').lower():
-                            continue
-                    
-                    if category and req.get('category') != category:
-                        continue
-                    
-                    if priority and req.get('priority') != priority:
-                        continue
-                    
-                    if service_type and req.get('service_type') != service_type:
-                        continue
-                    
-                    filtered_results.append(req)
-                
-                filters_applied = {}
-                if keyword:
-                    filters_applied['keyword'] = keyword
-                if category:
-                    filters_applied['category'] = category
-                if status:
-                    filters_applied['status'] = status
-                if priority:
-                    filters_applied['priority'] = priority
-                if service_type:
-                    filters_applied['service_type'] = service_type
-                
-                return ({
-                    'success': True,
-                    'data': filtered_results,
-                    'count': len(filtered_results),
-                    'filters_applied': filters_applied
-                }, 200)
-            
+            # Get requests
+            if self.my_requests:
+                # Get user's own requests
+                self.requests = Request.by_pin_user(self.user.id)
+                if self.status:
+                    self.requests = [r for r in self.requests if r.status == self.status]
             else:
-                results = Request.search_requests(keyword=keyword, category=category, status=status, priority=priority, service_type=service_type)
-                
-                filters_applied = {}
-                if keyword:
-                    filters_applied['keyword'] = keyword
-                if category:
-                    filters_applied['category'] = category
-                if status:
-                    filters_applied['status'] = status
-                if priority:
-                    filters_applied['priority'] = priority
-                if service_type:
-                    filters_applied['service_type'] = service_type
-                
-                return ({
-                    'success': True,
-                    'data': results,
-                    'count': len(results),
-                    'filters_applied': filters_applied
-                }, 200)
+                # Search all requests
+                self.requests = Request.search(
+                    keyword=self.keyword,
+                    category=self.category,
+                    status=self.status,
+                    priority=self.priority,
+                    service_type=self.service_type
+                )
+            
+            # Apply additional filters
+            filtered_requests = self.apply_filters(self.requests)
+            
+            # Build filters applied info
+            filters_applied = {}
+            if self.keyword: filters_applied['keyword'] = self.keyword
+            if self.category: filters_applied['category'] = self.category
+            if self.status: filters_applied['status'] = self.status
+            if self.priority: filters_applied['priority'] = self.priority
+            if self.service_type: filters_applied['service_type'] = self.service_type
+            
+            # Convert to dictionaries
+            requests_data = [req.to_dict() for req in filtered_requests]
+            
+            return ({
+                'success': True,
+                'data': requests_data,
+                'count': len(requests_data),
+                'filters_applied': filters_applied
+            }, 200)
             
         except Exception as e:
             print(f"Error searching requests: {str(e)}")

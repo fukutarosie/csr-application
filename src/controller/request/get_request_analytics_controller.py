@@ -1,49 +1,59 @@
 """
-Get Request Analytics Controller - US-27, US-28 (Control Layer)
-Handles retrieving analytics for a PIN user's request
+Get Request Analytics Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.request import Request
 from src.entity import User
 from src.utils.helpers import ResponseHelpers
 
+
 class GetRequestAnalyticsController:
     """
-    US-27: View count tracking
-    US-28: Shortlist count tracking
+    Get Request Analytics Controller - TRUE OOP
+    
+    Usage:
+        controller = GetRequestAnalyticsController(auth_token, request_id)
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def get_analytics(auth_token, request_id):
-        """
-        Get analytics for a specific request (view count, shortlist count)
-        
-        Returns: (response_dict, status_code)
-        """
+    def __init__(self, auth_token: str, request_id: int):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.request_id = request_id
+        self.user = None
+        self.request = None
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute analytics retrieval"""
         try:
-            # Verify token and get user
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
-            pin_user_id = user_data['id']
-            
-            # Get request to verify ownership
-            existing_request = Request.get_request(request_id)
-            if not existing_request:
+            # Load Request object
+            self.request = Request.find(self.request_id)
+            if not self.request:
                 return (ResponseHelpers.error_response('Request not found', 404), 404)
             
             # Verify ownership
-            if existing_request['pin_user_id'] != pin_user_id:
+            if self.request.pin_user_id != self.user.id:
                 return (ResponseHelpers.error_response('You can only view analytics for your own requests', 403), 403)
             
-            # Call ENTITY layer to get analytics
-            analytics = Request.get_request_analytics(request_id)
+            # Build analytics data
+            analytics = {
+                'request_id': self.request.id,
+                'view_count': self.request.view_count or 0,
+                'shortlist_count': self.request.shortlist_count or 0,
+                'status': self.request.status,
+                'created_at': self.request.created_at.isoformat() if self.request.created_at else None
+            }
             
-            if not analytics:
-                return (ResponseHelpers.error_response('Analytics not found', 404), 404)
-            
-            # Return response
             return (ResponseHelpers.success_response(
                 data=analytics,
                 message='Analytics retrieved successfully'

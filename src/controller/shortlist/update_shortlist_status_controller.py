@@ -1,72 +1,112 @@
 """
-Update Shortlist Status Controller - CSR updates shortlist status (Control Layer)
+Update Shortlist Status Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.shortlist import Shortlist
 from src.entity import User
 from src.utils.helpers import RequestHelpers, ResponseHelpers
 
+
 class UpdateShortlistStatusController:
     """
-    Update shortlist entry status
+    Update Shortlist Status Controller - TRUE OOP
+    
+    Usage:
+        controller = UpdateShortlistStatusController(auth_token, shortlist_id, data)
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def update_status(auth_token, shortlist_id, data):
-        """
-        Update shortlist status
+    def __init__(self, auth_token: str, shortlist_id: int, data: Dict):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.shortlist_id = shortlist_id
+        self.data = data
+        self.user = None
+        self.shortlist = None
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def validate_data(self) -> Tuple[bool, str]:
+        """Validate request data"""
+        if not self.data:
+            return False, 'Request body is required'
         
-        Returns: (response_dict, status_code)
-        """
+        # Validate required fields
+        required_fields = ['status']
+        is_valid, error_msg, _ = RequestHelpers.validate_required_fields(self.data, required_fields)
+        if not is_valid:
+            return False, error_msg
+        
+        # Validate status
+        status = self.data.get('status')
+        if status not in Shortlist.VALID_STATUSES:
+            return False, f'Invalid status. Must be one of: {", ".join(Shortlist.VALID_STATUSES)}'
+        
+        return True, ''
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute shortlist status update"""
         try:
-            # Verify token and get user
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
-            csr_user_id = user_data['id']
-            
-            # Extract request body
-            if not data:
-                return (ResponseHelpers.error_response('Request body is required', 400), 400)
-            
-            # Validate required fields
-            required_fields = ['status']
-            is_valid, error_msg, _ = RequestHelpers.validate_required_fields(data, required_fields)
+            # Validate data
+            is_valid, error_msg = self.validate_data()
             if not is_valid:
                 return (ResponseHelpers.error_response(error_msg, 400), 400)
             
-            status = data.get('status')
-            notes = data.get('notes')
-            volunteered_hours = data.get('volunteered_hours')
-            feedback_from_pin = data.get('feedback_from_pin')
+            # Load Shortlist object
+            self.shortlist = Shortlist.find(self.shortlist_id)
+            if not self.shortlist:
+                return (ResponseHelpers.error_response('Shortlist entry not found', 404), 404)
             
-            # Validate status
-            valid_statuses = ['IN_PROGRESS', 'COMPLETED', 'DECLINED', 'SHORTLISTED']
-            if status not in valid_statuses:
-                return (ResponseHelpers.error_response(
-                    f'Invalid status. Must be one of: {", ".join(valid_statuses)}',
-                    400
-                ), 400)
+            # Verify ownership
+            if self.shortlist.csr_user_id != self.user.id:
+                return (ResponseHelpers.error_response('Unauthorized', 403), 403)
             
-            # Call ENTITY layer
-            updated_entry = Shortlist.update_shortlist_status(
-                shortlist_id=shortlist_id,
-                csr_user_id=csr_user_id,
-                new_status=status,
-                notes=notes,
-                volunteered_hours=volunteered_hours
-            )
+            new_status = self.data.get('status')
+
+            # Prevent CSR from marking as completed directly
+            if new_status == Shortlist.STATUS_COMPLETED:
+                return (
+                    ResponseHelpers.error_response(
+                        'Only PIN users can mark an opportunity as completed.',
+                        403
+                    ),
+                    403
+                )
+
+            # Ensure no other CSR has already accepted the request
+            if new_status == Shortlist.STATUS_IN_PROGRESS:
+                existing_assignment = Shortlist.active_assignment_for_request(self.shortlist.request_id)
+                if existing_assignment and existing_assignment.id != self.shortlist.id:
+                    return (
+                        ResponseHelpers.error_response(
+                            'Another CSR representative has already accepted this opportunity.',
+                            409
+                        ),
+                        409
+                    )
+
+            # Update status and optional fields
+            self.shortlist.status = new_status
+            if 'notes' in self.data:
+                self.shortlist.notes = self.data.get('notes')
+            if 'volunteered_hours' in self.data:
+                self.shortlist.volunteered_hours = self.data.get('volunteered_hours')
+            if 'feedback_from_pin' in self.data:
+                self.shortlist.feedback_from_pin = self.data.get('feedback_from_pin')
             
-            if not updated_entry:
-                return (ResponseHelpers.error_response(
-                    'Failed to update status. Shortlist entry not found or unauthorized.',
-                    400
-                ), 400)
+            # Save (instance method)
+            self.shortlist.save()
             
-            # Return response
             return (ResponseHelpers.success_response(
-                data=updated_entry,
+                data=self.shortlist.to_dict(),
                 message='Shortlist status updated successfully'
             ), 200)
             

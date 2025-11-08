@@ -14,7 +14,9 @@ def update(user_id):
     """Update user account details"""
     try:
         payload = request.get_json()
-        response, status = UpdateUserAccountController.update(user_id, payload)
+        # TRUE OOP: Create controller object, call instance method
+        controller = UpdateUserAccountController(user_id, payload)
+        response, status = controller.execute()
         return jsonify(response), status
     except Exception as exc:
         return jsonify({

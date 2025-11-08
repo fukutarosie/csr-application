@@ -35,9 +35,14 @@ export default function NewRequest() {
         'http://localhost:5000/api/requests/service-types'
       );
       console.log('Service types response:', typesRes.data);
-      if (typesRes.data.success) {
-        console.log('Service types data:', typesRes.data.data);
-        setServiceTypes(typesRes.data.data || []);
+      
+      // Handle if response.data is an array (double-wrapped)
+      const actualData = Array.isArray(typesRes.data) ? typesRes.data[0] : typesRes.data;
+      console.log('Actual data:', actualData);
+      
+      if (actualData && actualData.success) {
+        console.log('Service types data:', actualData.data);
+        setServiceTypes(actualData.data || []);
       }
     } catch (err) {
       console.error('Error fetching lookup data:', err);

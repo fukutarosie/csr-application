@@ -14,7 +14,9 @@ def search():
     """Search users"""
     try:
         payload = request.get_json()
-        response, status = SearchUserAccountController.search(payload)
+        # TRUE OOP: Create controller object, call instance method
+        controller = SearchUserAccountController(payload)
+        response, status = controller.execute()
         return jsonify(response), status
     except Exception as exc:
         return jsonify({

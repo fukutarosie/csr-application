@@ -14,5 +14,6 @@ increment_view_count_boundary = Blueprint(
 @require_role('CSR Rep')
 def increment_view(request_id):
     """Increment view count for a request"""
-    response, status = IncrementViewCountController.increment_view(request_id)
+    controller = IncrementViewCountController(request_id)
+    response, status = controller.execute()
     return jsonify(response), status

@@ -1,67 +1,85 @@
 """
-Get Shortlist Controller - CSR views their shortlist (Control Layer)
+Get Shortlist Controller - TRUE OOP Implementation
 """
 
+from typing import Dict, Tuple
 from src.entity.shortlist import Shortlist
 from src.entity import User
 from src.utils.helpers import ResponseHelpers
 
+
 class GetShortlistController:
     """
-    Get CSR's shortlist with filters and pagination
+    Get Shortlist Controller - TRUE OOP
+    
+    Usage:
+        controller = GetShortlistController(auth_token, status_filter, page, limit)
+        response, status = controller.execute()
     """
     
-    @staticmethod
-    def get_shortlist(auth_token, status_filter, page_str, limit_str):
+    def __init__(self, auth_token: str, status_filter: str = None, page: str = None, limit: str = None):
         """
-        Get CSR's shortlist with filters
+        Initialize controller
         
-        Returns: (response_dict, status_code)
+        Args:
+            auth_token: JWT authentication token
+            status_filter: Optional status filter
+            page: Page number for pagination
+            limit: Items per page
+        """
+        self.auth_token = auth_token
+        self.status_filter = status_filter
+        self.page = page
+        self.limit = limit
+        self.user = None
+        self.shortlist_items = []
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def parse_pagination(self) -> Tuple[int, int]:
+        """Parse pagination parameters"""
+        try:
+            page = int(self.page) if self.page else 1
+            limit = int(self.limit) if self.limit else 50
+        except:
+            page = 1
+            limit = 50
+        return page, limit
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute shortlist retrieval
+        
+        Returns:
+            Tuple of (response_dict, status_code)
         """
         try:
-            # Verify token and get user
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return (ResponseHelpers.error_response('Invalid or expired token', 401), 401)
             
-            csr_user_id = user_data['id']
-
-            # If frontend does not provide a status filter, default to SHORTLISTED
-            # to show the CSR their active shortlist items first.
-            if not status_filter:
-                status_filter = Shortlist.STATUS_SHORTLISTED
-            
             # Parse pagination
-            try:
-                page = int(page_str) if page_str else 1
-                limit = int(limit_str) if limit_str else 50
-            except:
-                page = 1
-                limit = 50
-            
-            # Calculate offset from page number
+            page, limit = self.parse_pagination()
             offset = (page - 1) * limit
             
-            # Call ENTITY layer with offset
-            shortlist_items = Shortlist.search_shortlist(
-                csr_user_id=csr_user_id,
-                status=status_filter,
-                limit=limit,
-                offset=offset
+            # Get Shortlist objects (factory method)
+            # If status_filter is None or empty, show ALL items
+            self.shortlist_items = Shortlist.search(
+                csr_user_id=self.user.id,
+                status=self.status_filter if self.status_filter else None
             )
             
-            print(f"[DEBUG] Shortlist controller - User ID: {csr_user_id}, Status filter: {status_filter}, Items found: {len(shortlist_items)}")
-            if shortlist_items:
-                print(f"[DEBUG] First item: {shortlist_items[0]}")
+            # Convert to dictionaries
+            shortlist_data = [item.to_dict() for item in self.shortlist_items]
             
-            # Return response
             return (ResponseHelpers.success_response(
-                data=shortlist_items,
+                data=shortlist_data,
                 message='Shortlist retrieved successfully'
             ), 200)
             
         except Exception as e:
             print(f"[ERROR] Get shortlist failed: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return (ResponseHelpers.error_response('Internal server error'), 500)

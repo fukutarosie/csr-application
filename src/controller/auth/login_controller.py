@@ -1,230 +1,284 @@
-"""Login Controller - Business logic for authentication (login, logout, verify)"""
+"""
+Login Controller - TRUE OOP Implementation
+Holds request data in memory and orchestrates authentication
+"""
 
+from typing import Dict, Tuple, List
 from src.entity import User, Role
 from src.utils.validators import Validators
 from src.utils.sanitizers import Sanitizers
 from src.utils.helpers import TokenHelpers, RequestHelpers, ResponseHelpers
 
 
-def extract_and_sanitize_auth_data(data: dict) -> dict:
-    """
-    Extract and sanitize authentication data
-    
-    Args:
-        data: Raw request data
-        
-    Returns:
-        Sanitized data dictionary
-    """
-    return {
-        'username': Sanitizers.sanitize_username(data.get('username', '')),
-        'password': data.get('password', ''),  # Don't modify password
-        'role_name': Sanitizers.sanitize_string(data.get('role_name', ''))
-    }
-
-
 class LoginController:
-    """Business logic for authentication"""
-
-    @staticmethod
-    def login(data):
+    """
+    Login Controller - TRUE OOP
+    
+    This controller holds request data in memory and orchestrates authentication.
+    It demonstrates proper OOP:
+    - Has instance variables (data in memory)
+    - Uses instance methods
+    - Works with User objects and calls their instance methods
+    
+    Usage:
+        controller = LoginController(request_data)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, request_data: Dict):
         """
-        Login business logic
+        Initialize controller with request data
         
         Args:
-            data: Login data from HTTP request
-            
+            request_data: Login data from HTTP request
+        """
+        # Instance variables (object state - data in memory)
+        self.request_data = request_data
+        self.user = None  # Will hold User object
+        self.errors: List[str] = []
+        self.sanitized_data: Dict = {}
+    
+    # ============================================================================
+    # VALIDATION METHODS (Instance methods)
+    # ============================================================================
+    
+    def validate_request_data(self) -> bool:
+        """
+        Validate request data
+        
+        Returns:
+            True if valid, False otherwise (errors stored in self.errors)
+        """
+        if not self.request_data:
+            self.errors.append('Request body is required')
+            return False
+        
+        # Validate required fields
+        is_valid, error_msg, missing = RequestHelpers.validate_required_fields(
+            self.request_data, ['username', 'password', 'role_name']
+        )
+        if not is_valid:
+            self.errors.append(error_msg)
+            return False
+        
+        # Sanitize input data
+        self.sanitized_data = {
+            'username': Sanitizers.sanitize_username(self.request_data.get('username', '')),
+            'password': self.request_data.get('password', ''),  # Don't modify password
+            'role_name': Sanitizers.sanitize_string(self.request_data.get('role_name', ''))
+        }
+        
+        # Validate username format
+        is_valid, error_msg = Validators.validate_username(self.sanitized_data['username'])
+        if not is_valid:
+            self.errors.append(error_msg)
+            return False
+        
+        # Validate password format
+        is_valid, error_msg = Validators.validate_password(self.sanitized_data['password'])
+        if not is_valid:
+            self.errors.append(error_msg)
+            return False
+        
+        return True
+    
+    def authenticate_user(self) -> bool:
+        """
+        Authenticate user using User.authenticate factory method
+        
+        Returns:
+            True if authenticated, False otherwise
+        """
+        self.user = User.authenticate(
+            username=self.sanitized_data['username'],
+            password=self.sanitized_data['password'],
+            role_name=self.sanitized_data['role_name']
+        )
+        
+        if not self.user:
+            self.errors.append('Invalid credentials or user role mismatch')
+            return False
+        
+        return True
+    
+    # ============================================================================
+    # MAIN EXECUTION METHOD (Instance method)
+    # ============================================================================
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute login process
+        
+        This is the main method that orchestrates the entire process:
+        1. Validate request data
+        2. Authenticate user (returns User object)
+        3. Generate session token
+        4. Return response with user data and token
+        
         Returns:
             Tuple of (response_dict, status_code)
         """
         try:
-            # Validate data presence
-            if not data:
+            # Step 1: Validate request data
+            if not self.validate_request_data():
                 return ResponseHelpers.error_response(
-                    message='Request body is required',
-                    error_code='EMPTY_BODY',
+                    message='; '.join(self.errors),
+                    error_code='VALIDATION_ERROR',
                     status_code=400
                 )
-
-            # Validate required fields
-            is_valid, error_msg, missing = RequestHelpers.validate_required_fields(
-                data, ['username', 'password', 'role_name']
-            )
-            if not is_valid:
+            
+            # Step 2: Authenticate user (returns User object)
+            if not self.authenticate_user():
                 return ResponseHelpers.error_response(
-                    message=error_msg,
-                    error_code='MISSING_FIELDS',
-                    status_code=400,
-                    details={'missing_fields': missing}
-                )
-
-            # Sanitize input data
-            sanitized_data = extract_and_sanitize_auth_data(data)
-            username = sanitized_data['username']
-            password = sanitized_data['password']
-            role_name = sanitized_data['role_name']
-
-            # Validate data format
-            is_valid, error_msg = Validators.validate_username(username)
-            if not is_valid:
-                return ResponseHelpers.error_response(
-                    message=error_msg,
-                    error_code='INVALID_USERNAME',
-                    status_code=400
-                )
-
-            is_valid, error_msg = Validators.validate_password(password)
-            if not is_valid:
-                return ResponseHelpers.error_response(
-                    message=error_msg,
-                    error_code='INVALID_PASSWORD',
-                    status_code=400
-                )
-
-            # Call Entity layer for authentication
-            result = User.authenticate_user(username, password, role_name)
-
-            if not result:
-                return ResponseHelpers.error_response(
-                    message='Invalid credentials or user role mismatch',
+                    message='; '.join(self.errors),
                     error_code='AUTH_FAILED',
                     status_code=401
                 )
-
+            
+            # Step 3: Generate session token
+            token = self.user.generate_session_token()
+            
+            # Step 4: Return success response
             response_data = {
-                'token': result['token'],
+                'token': token,
                 'user': {
-                    'id': result['id'],
-                    'username': result['username'],
-                    'full_name': result['full_name'],
-                    'email': result['email'],
-                    'role': {
-                        'name': result['role']['role_name'],
-                        'code': result['role']['role_code'],
-                        'dashboard_route': result['role']['dashboard_route']
-                    }
+                    'id': self.user.id,
+                    'username': self.user.username,
+                    'full_name': self.user.full_name,
+                    'email': self.user.email,
+                    'role_id': self.user.role_id,
+                    'role': self.user.roles if self.user.roles else None
                 }
             }
-
-            # Log activity
-            try:
-                User.log_user_activity(result['id'], 'login', f'Logged in as {role_name}')
-            except Exception:
-                pass
-
+            
             return ResponseHelpers.success_response(
                 data=response_data,
                 message='Login successful',
                 status_code=200
             )
-
+            
         except Exception as e:
+            import traceback
             print(f"[ERROR] Login error: {str(e)}")
+            print(f"[ERROR] Traceback: {traceback.format_exc()}")
             return ResponseHelpers.error_response(
-                message='An error occurred during login',
+                message='An unexpected error occurred during login',
                 error_code='SERVER_ERROR',
                 status_code=500
             )
 
-    @staticmethod
-    def logout(token):
+
+class LogoutController:
+    """
+    Logout Controller - TRUE OOP
+    
+    Usage:
+        controller = LogoutController(auth_token)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, auth_token: str):
         """
-        Logout business logic
+        Initialize controller with auth token
         
         Args:
-            token: JWT token from Authorization header
-            
+            auth_token: JWT authentication token
+        """
+        self.auth_token = auth_token
+        self.user = None
+        self.errors: List[str] = []
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute logout process
+        
         Returns:
             Tuple of (response_dict, status_code)
         """
         try:
-            # Validate token presence
-            if not token:
-                return {
-                    'success': False,
-                    'message': 'Invalid or missing token'
-                }, 401
-            
-            # Call Entity to invalidate token
-            success = User.invalidate_session_token(token)
-            
-            if success:
-                return {
-                    'success': True,
-                    'message': 'Logout successful'
-                }, 200
-            else:
-                return {
-                    'success': False,
-                    'message': 'Logout failed'
-                }, 400
-                
-        except Exception as e:
-            print(f"[ERROR] Logout error: {str(e)}")
-            return {
-                'success': False,
-                'message': 'An error occurred during logout'
-            }, 500
-
-    @staticmethod
-    def verify(token):
-        """
-        Verify session token business logic
-        
-        Args:
-            token: JWT token from Authorization header
-            
-        Returns:
-            Tuple of (response_dict, status_code)
-        """
-        try:
-            # Validate token format
-            if not token:
-                return ResponseHelpers.error_response(
-                    message='Invalid or missing token',
-                    error_code='INVALID_TOKEN_FORMAT',
-                    status_code=401
-                )
-
-            # Call Entity layer for verification
-            user = User.verify_session_token(token)
-
-            if not user:
+            # Verify token and get user
+            self.user = User.verify_token(self.auth_token)
+            if not self.user:
                 return ResponseHelpers.error_response(
                     message='Invalid or expired token',
                     error_code='INVALID_TOKEN',
                     status_code=401
                 )
+            
+            # Return success response
+            return ResponseHelpers.success_response(
+                message='Logout successful',
+                status_code=200
+            )
+            
+        except Exception as e:
+            print(f"[ERROR] Logout error: {str(e)}")
+            return ResponseHelpers.error_response(
+                message='An unexpected error occurred during logout',
+                error_code='SERVER_ERROR',
+                status_code=500
+            )
 
-            # Get role info
-            role = Role.get_role_by_id(user['role_id'])
 
-            # Format response
+class VerifyTokenController:
+    """
+    Verify Token Controller - TRUE OOP
+    
+    Usage:
+        controller = VerifyTokenController(auth_token)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, auth_token: str):
+        """
+        Initialize controller with auth token
+        
+        Args:
+            auth_token: JWT authentication token
+        """
+        self.auth_token = auth_token
+        self.user = None
+        self.errors: List[str] = []
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """
+        Execute token verification process
+        
+        Returns:
+            Tuple of (response_dict, status_code)
+        """
+        try:
+            # Verify token and get user
+            self.user = User.verify_token(self.auth_token)
+            if not self.user:
+                return ResponseHelpers.error_response(
+                    message='Invalid or expired token',
+                    error_code='INVALID_TOKEN',
+                    status_code=401
+                )
+            
+            # Return success response with user data
             response_data = {
                 'user': {
-                    'id': user['id'],
-                    'username': user['username'],
-                    'full_name': user['full_name'],
-                    'email': user['email'],
-                    'role': {
-                        'name': role['role_name'],
-                        'code': role['role_code'],
-                        'dashboard_route': role['dashboard_route']
-                    } if role else None
+                    'id': self.user.id,
+                    'username': self.user.username,
+                    'full_name': self.user.full_name,
+                    'email': self.user.email,
+                    'role_id': self.user.role_id,
+                    'role': self.user.roles if self.user.roles else None
                 }
             }
-
+            
             return ResponseHelpers.success_response(
                 data=response_data,
                 message='Token is valid',
                 status_code=200
             )
-
+            
         except Exception as e:
-            print(f"[ERROR] Verify error: {str(e)}")
+            print(f"[ERROR] Verify token error: {str(e)}")
             return ResponseHelpers.error_response(
-                message='An error occurred during token verification',
+                message='An unexpected error occurred during token verification',
                 error_code='SERVER_ERROR',
                 status_code=500
             )
-

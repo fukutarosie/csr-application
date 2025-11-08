@@ -22,7 +22,6 @@ def get_history():
     page = request.args.get('page', '1')
     limit = request.args.get('limit', '10')
     
-    response, status = GetCompletedMatchesController.get_history(
-        auth_token, start_date, end_date, page, limit
-    )
+    controller = GetCompletedMatchesController(auth_token, start_date, end_date, page, limit)
+    response, status = controller.execute()
     return jsonify(response), status

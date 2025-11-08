@@ -17,25 +17,25 @@ def require_role(*allowed_roles):
             if auth_token.startswith('Bearer '):
                 auth_token = auth_token[7:]
 
-            user = User.verify_session_token(auth_token)
+            user = User.verify_token(auth_token)
             if not user:
                 return jsonify({
                     'success': False,
                     'message': 'Invalid or expired token'
                 }), 401
 
-            role = Role.get_role_by_id(user['role_id'])
+            role = Role.find(user.role_id)
             if not role:
-                print(f"[AUTH] Role not found for role_id: {user.get('role_id')}")
+                print(f"[AUTH] Role not found for role_id: {user.role_id}")
                 return jsonify({
                     'success': False,
                     'message': 'User role not found'
                 }), 403
 
-            print(f"[AUTH] User role: {role.get('role_name')}, Allowed roles: {allowed_roles}")
+            print(f"[AUTH] User role: {role.role_name}, Allowed roles: {allowed_roles}")
             
-            if role['role_name'] not in allowed_roles:
-                print(f"[AUTH] Access denied - '{role['role_name']}' not in {allowed_roles}")
+            if role.role_name not in allowed_roles:
+                print(f"[AUTH] Access denied - '{role.role_name}' not in {allowed_roles}")
                 return jsonify({
                     'success': False,
                     'message': f'You do not have permission to view requests'
@@ -57,7 +57,7 @@ def get_user_from_token():
     if not auth_token:
         return None
 
-    user = User.verify_session_token(auth_token)
+    user = User.verify_token(auth_token)
     if not user:
         return None
 

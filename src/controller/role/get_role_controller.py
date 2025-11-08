@@ -1,25 +1,36 @@
+"""
+Get Role Controller - TRUE OOP Implementation
+"""
+
+from typing import Dict, Tuple
 from src.entity import Role
 
+
 class GetRoleController:
-    """Controller for fetching a specific role by ID"""
+    """
+    Get Role Controller - TRUE OOP
     
-    @staticmethod
-    def get_role(role_id):
-        """Get specific role by ID"""
+    Usage:
+        controller = GetRoleController(role_id)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, role_id: int):
+        """Initialize controller"""
+        self.role_id = role_id
+        self.role = None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute role retrieval"""
         try:
-            role = Role.get_role_by_id(role_id)
-            if not role:
-                return ({
-                    'success': False,
-                    'message': 'Role not found'
-                }, 404)
+            self.role = Role.find(self.role_id)  # Use factory method
+            if not self.role:
+                return ({'success': False, 'message': 'Role not found'}, 404)
             
             return ({
                 'success': True,
-                'data': role
+                'data': self.role.to_dict()
             }, 200)
+            
         except Exception as e:
-            return ({
-                'success': False,
-                'message': str(e)
-            }, 500)
+            return ({'success': False, 'message': str(e)}, 500)

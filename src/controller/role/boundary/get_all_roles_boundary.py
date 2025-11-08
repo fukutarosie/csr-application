@@ -11,5 +11,6 @@ get_all_roles_boundary = Blueprint('get_all_roles', __name__)
 @require_role(Role.USER_ADMIN)
 def get_all_roles():
     """Get all roles - Admin only"""
-    response, status = GetAllRolesController.get_all_roles()
+    controller = GetAllRolesController()
+    response, status = controller.execute()
     return jsonify(response), status

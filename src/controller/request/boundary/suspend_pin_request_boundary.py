@@ -17,5 +17,6 @@ def suspend_request(request_id):
     auth_token = request.headers.get('Authorization', '').replace('Bearer ', '')
     payload = request.get_json() or {}
     
-    response, status = SuspendPINRequestController.suspend_request(auth_token, request_id, payload)
+    controller = SuspendPINRequestController(auth_token, request_id, payload)
+    response, status = controller.execute()
     return jsonify(response), status

@@ -41,6 +41,8 @@ export default function RequestCard({
 
   const colors = themeColors[theme] || themeColors.blue;
 
+  const displayStatus = request.assignment_status || request.status;
+
   const getStatusBadge = (status) => {
     const statusColors = {
       'ACTIVE': 'bg-green-100 text-green-800',
@@ -87,10 +89,10 @@ export default function RequestCard({
         </div>
         
         {/* Status Badge Overlay */}
-        {request.status && (
+      {displayStatus && (
           <div className="absolute top-3 right-3">
-            <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg ${getStatusBadge(request.status)}`}>
-              {request.status.replace('_', ' ')}
+          <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-lg ${getStatusBadge(displayStatus)}`}>
+            {displayStatus.replace('_', ' ')}
             </span>
           </div>
         )}
@@ -145,6 +147,18 @@ export default function RequestCard({
 
           {/* Extra Info (custom content passed from parent) */}
           {extraInfo}
+
+          {/* Assignment info fallback */}
+          {!extraInfo && request.active_assignment && request.active_assignment.csr_user && (
+            <div className="flex items-center text-sm text-purple-700 font-medium bg-purple-50 border border-purple-200 rounded-lg px-3 py-2">
+              <span className="mr-2">👤</span>
+              <span>
+                {request.assignment_status === 'IN_PROGRESS'
+                  ? `In progress by ${request.active_assignment.csr_user.full_name}`
+                  : `Completed by ${request.active_assignment.csr_user.full_name}`}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* 🆕 US-27 & US-28: Analytics Section */}

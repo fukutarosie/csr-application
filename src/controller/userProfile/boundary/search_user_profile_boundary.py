@@ -13,7 +13,8 @@ search_user_profile_boundary = Blueprint('search_user_profile', __name__, url_pr
 def search_user_profile():
     try:
         payload = request.get_json()
-        response, status = SearchUserProfileController.search_user_profiles(payload)
+        controller = SearchUserProfileController(payload)
+        response, status = controller.execute()
         return jsonify(response), status
     except Exception as exc:
         return jsonify({

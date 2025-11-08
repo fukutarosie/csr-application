@@ -1,113 +1,144 @@
-"""ViewPINRequestController - Handles PIN user request viewing (Control Layer)"""
+"""
+View PIN Request Controller - TRUE OOP Implementation
+"""
 
+from typing import Dict, Tuple, Optional
 from src.entity.request import Request
+from src.entity.shortlist import Shortlist
 from src.entity import User
 
-class ViewPINRequestController:
-    @staticmethod
-    def get_requests(auth_token, status_param):
-        """Get requests - PIN users see their own, CSR Reps see all ACTIVE requests"""
+
+class ViewPINRequestsController:
+    """
+    View PIN Requests Controller - TRUE OOP
+    
+    Usage:
+        controller = ViewPINRequestsController(auth_token, status_param)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, auth_token: str, status_param: str = None):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.status_param = status_param
+        self.user = None
+        self.requests = []
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute request retrieval"""
         try:
-            # Get authenticated user from token
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return ({'success': False, 'message': 'Unauthorized'}, 401)
             
-            user_role = user_data.get('role', {}).get('name', '')
-            user_id = user_data['id']
-            
-            print(f"[DEBUG] get_requests - User {user_id} ({user_role}) fetching requests")
-            
-            # Check if user has permission
-            if user_role not in ['PIN', 'CSR Rep', 'Platform Manager']:
+            # Check permission
+            user_role = self.user.roles.get('role_name') if self.user.roles else None
+            if user_role not in ['PIN', 'CSR Rep', 'Platform Management']:
                 return ({
                     'success': False,
                     'message': 'You do not have permission to view requests'
                 }, 403)
             
-            status = status_param
-            
-            # PIN users see only their own requests
+            # Get requests based on role
             if user_role == 'PIN':
-                requests_list = Request.get_requests_by_pin_user(
-                    pin_user_id=user_id,
-                    status=status
-                )
-            # CSR Rep and Platform Manager see all requests (default to ACTIVE if no status specified)
+                # PIN users see only their own requests
+                self.requests = Request.by_pin_user(self.user.id)
+                if self.status_param:
+                    self.requests = [r for r in self.requests if r.status == self.status_param]
             else:
-                if status is None:
-                    status = 'ACTIVE'
-                requests_list = Request.get_all_requests(status=status)
+                # CSR Rep and Platform Manager see all requests
+                status = self.status_param or 'ACTIVE'
+                self.requests = Request.by_status(status)
             
-            print(f"[DEBUG] Returning {len(requests_list)} requests")
+            # Convert to dictionaries
+            requests_data = []
+            for req in self.requests:
+                req_dict = req.to_dict()
+                active_assignment = Shortlist.active_assignment_for_request(req.id)
+                if active_assignment:
+                    req_dict['assignment_status'] = active_assignment.status
+                    req_dict['active_assignment'] = active_assignment.to_assignment_dict()
+                else:
+                    req_dict['assignment_status'] = None
+                    req_dict['active_assignment'] = None
+                requests_data.append(req_dict)
             
             return ({
                 'success': True,
-                'data': requests_list,
-                'count': len(requests_list)
+                'data': requests_data,
+                'count': len(requests_data)
             }, 200)
             
         except Exception as e:
             print(f"Error getting requests: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return ({
                 'success': False,
                 'message': 'Internal server error'
             }, 500)
 
-    @staticmethod
-    def get_request_detail(auth_token, request_id):
-        """Get single request detail - accessible by PIN (own requests), CSR Rep (all requests), Platform Manager"""
+
+class ViewPINRequestDetailController:
+    """
+    View PIN Request Detail Controller - TRUE OOP
+    
+    Usage:
+        controller = ViewPINRequestDetailController(auth_token, request_id)
+        response, status = controller.execute()
+    """
+    
+    def __init__(self, auth_token: str, request_id: int):
+        """Initialize controller"""
+        self.auth_token = auth_token
+        self.request_id = request_id
+        self.user = None
+        self.request = None
+    
+    def authenticate_user(self) -> bool:
+        """Authenticate user from token"""
+        self.user = User.verify_token(self.auth_token)
+        return self.user is not None
+    
+    def execute(self) -> Tuple[Dict, int]:
+        """Execute request detail retrieval"""
         try:
-            # Get authenticated user from token
-            user_data = User.verify_session_token(auth_token)
-            if not user_data:
+            # Authenticate
+            if not self.authenticate_user():
                 return ({'success': False, 'message': 'Unauthorized'}, 401)
             
-            user_role = user_data.get('role', {}).get('name', '')
-            user_id = user_data['id']
+            # Load Request object
+            self.request = Request.find(self.request_id)
+            if not self.request:
+                return ({'success': False, 'message': 'Request not found'}, 404)
             
-            print(f"[DEBUG] User {user_id} ({user_role}) requesting request {request_id}")
+            # Check permission (PIN users can only see their own)
+            user_role = self.user.roles.get('role_name') if self.user.roles else None
+            if user_role == 'PIN' and self.request.pin_user_id != self.user.id:
+                return ({'success': False, 'message': 'Unauthorized'}, 403)
             
-            # Check if user has permission to view requests
-            if user_role not in ['PIN', 'CSR Rep', 'Platform Manager']:
-                print(f"[DEBUG] Role '{user_role}' not in allowed roles")
-                return ({
-                    'success': False,
-                    'message': 'You do not have permission to view requests'
-                }, 403)
+            # Increment view count
+            self.request.increment_view_count()
             
-            request_data = Request.get_request(request_id)
+            request_dict = self.request.to_dict()
+            active_assignment = Shortlist.active_assignment_for_request(self.request.id)
+            if active_assignment:
+                request_dict['assignment_status'] = active_assignment.status
+                request_dict['active_assignment'] = active_assignment.to_assignment_dict()
+            else:
+                request_dict['assignment_status'] = None
+                request_dict['active_assignment'] = None
             
-            if not request_data:
-                print(f"[DEBUG] Request {request_id} not found")
-                return ({
-                    'success': False,
-                    'message': 'Request not found'
-                }, 404)
-            
-            print(f"[DEBUG] Request data keys: {request_data.keys()}")
-            print(f"[DEBUG] Request pin_user_id: {request_data.get('pin_user_id')}")
-            
-            # PIN users can only view their own requests
-            if user_role == 'PIN' and request_data.get('pin_user_id') != user_id:
-                print(f"[DEBUG] PIN user {user_id} trying to access request owned by {request_data.get('pin_user_id')}")
-                return ({
-                    'success': False,
-                    'message': 'You do not have permission to view this request'
-                }, 403)
-            
-            # CSR Rep and Platform Manager can view any request
             return ({
                 'success': True,
-                'data': request_data
+                'data': request_dict
             }, 200)
             
         except Exception as e:
             print(f"Error getting request detail: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return ({
                 'success': False,
                 'message': 'Internal server error'

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
 import Header from '../../components/Header';
+import Alert from '../../components/Alert';
 import { useToast } from '../../components/ToastProvider';
 
 export default function CompletedMatches() {
@@ -36,7 +37,7 @@ export default function CompletedMatches() {
     }
 
     const parsedUser = JSON.parse(userData);
-    if (parsedUser.role.name !== 'PIN') {
+    if (parsedUser.role.role_name !== 'PIN') {
       router.push('/');
       return;
     }
