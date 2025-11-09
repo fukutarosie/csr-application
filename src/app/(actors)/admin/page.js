@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import Header from '../components/Header';
-import Alert from '../components/Alert';
-import { useToast } from '../components/ToastProvider';
+import Header from '../../components/Header';
+import Alert from '../../components/Alert';
+import { useToast } from '../../components/ToastProvider';
 
 export default function UserAdminDashboard() {
   const router = useRouter();
