@@ -23,7 +23,7 @@ export default function PINDashboard() {
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [completionFeedback, setCompletionFeedback] = useState('');
-  const [completionHours, setCompletionHours] = useState('');
+  const [completionRating, setCompletionRating] = useState('');
 
   const getToken = () => localStorage.getItem('token');
 
@@ -133,7 +133,7 @@ export default function PINDashboard() {
   const openCompleteModal = (request) => {
     setSelectedRequest(request);
     setCompletionFeedback('');
-    setCompletionHours('');
+    setCompletionRating('');
     setShowCompleteModal(true);
   };
 
@@ -142,7 +142,7 @@ export default function PINDashboard() {
     setSelectedRequest(null);
     setCompletingRequest(null);
     setCompletionFeedback('');
-    setCompletionHours('');
+    setCompletionRating('');
   };
 
   const handleMarkAsCompleted = async () => {
@@ -153,7 +153,7 @@ export default function PINDashboard() {
       const payload = {
         status: 'FULFILLED',
         feedback_from_pin: completionFeedback || undefined,
-        volunteered_hours: completionHours || undefined
+        volunteered_hours: completionRating || undefined
       };
 
       const response = await axios.put(
@@ -389,7 +389,7 @@ export default function PINDashboard() {
                         </div>
                         <div className="flex items-center">
                           <span className="mr-1">⭐</span>
-                          <span>{request.shortlist_count || 0} saved</span>
+                          <span>{request.shortlist_count || 0} shortlisted</span>
                         </div>
                       </div>
                     </div>
@@ -456,16 +456,16 @@ export default function PINDashboard() {
             <div className="space-y-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Volunteer Hours (optional)
+                  Rate Volunteer (1-5)
                 </label>
                 <input
                   type="number"
                   min="0"
                   step="0.5"
-                  value={completionHours}
-                  onChange={(e) => setCompletionHours(e.target.value)}
+                  value={completionRating}
+                  onChange={(e) => setCompletionRating(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="e.g. 2.5"
+                  placeholder="Rate 1-5"
                 />
               </div>
               <div>

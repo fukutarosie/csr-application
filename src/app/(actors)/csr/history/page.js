@@ -182,7 +182,7 @@ export default function CSRHistory() {
             </div>
             
             <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-lg shadow p-6 text-white">
-              <div className="text-sm opacity-90 mb-1">Total Hours</div>
+              <div className="text-sm opacity-90 mb-1">Total Rating Points</div>
               <div className="text-4xl font-bold">{stats.totalHoursVolunteered || 0}</div>
             </div>
 
@@ -248,9 +248,9 @@ export default function CSRHistory() {
 
                       <div className="flex flex-wrap gap-4 text-sm">
                         <div className="flex items-center">
-                          <span className="text-green-600 font-semibold mr-2">⏰</span>
+                          <span className="text-green-600 font-semibold mr-2">⭐</span>
                           <span className="text-gray-700">
-                            <strong>Hours:</strong> {item.volunteered_hours || 0} hours
+                            <strong>Volunteer Rating:</strong> {item.volunteered_hours ? `${item.volunteered_hours}/5` : 'Not rated yet'}
                           </span>
                         </div>
                         <div className="flex items-center">

@@ -263,8 +263,8 @@ export default function CompletedMatches() {
                             </div>
                             {csr.volunteered_hours && (
                               <div>
-                                <p className="text-green-700 font-medium">Hours Volunteered</p>
-                                <p className="text-green-900">⏱️ {csr.volunteered_hours} hours</p>
+                                <p className="text-green-700 font-medium">Volunteer Rating</p>
+                                <p className="text-green-900">⭐ {csr.volunteered_hours}/5</p>
                               </div>
                             )}
                           </div>
