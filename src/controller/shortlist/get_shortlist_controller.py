@@ -3,6 +3,7 @@ Get Shortlist Controller - TRUE OOP Implementation
 """
 
 from typing import Dict, Tuple
+from datetime import datetime
 from src.entity.shortlist import Shortlist
 from src.entity import User
 from src.utils.helpers import ResponseHelpers
@@ -17,7 +18,16 @@ class GetShortlistController:
         response, status = controller.execute()
     """
     
-    def __init__(self, auth_token: str, status_filter: str = None, page: str = None, limit: str = None):
+    def __init__(
+        self,
+        auth_token: str,
+        status_filter: str = None,
+        page: str = None,
+        limit: str = None,
+        start_date: str = None,
+        end_date: str = None,
+        service_type: str = None
+    ):
         """
         Initialize controller
         
@@ -31,6 +41,9 @@ class GetShortlistController:
         self.status_filter = status_filter
         self.page = page
         self.limit = limit
+        self.start_date = start_date
+        self.end_date = end_date
+        self.service_type = service_type.lower() if service_type else None
         self.user = None
         self.shortlist_items = []
     
@@ -72,7 +85,21 @@ class GetShortlistController:
                 status=self.status_filter if self.status_filter else None
             )
             
-            # Convert to dictionaries
+            # Apply date filters
+            if self.start_date or self.end_date:
+                self.shortlist_items = [
+                    item for item in self.shortlist_items
+                    if self._within_date_range(item)
+                ]
+
+            # Apply service type filter
+            if self.service_type:
+                self.shortlist_items = [
+                    item for item in self.shortlist_items
+                    if (item.requests or {}).get('service_type', '').lower() == self.service_type
+                ]
+            
+            # Convert to dictionaries (apply pagination after filtering if needed)
             shortlist_data = [item.to_dict() for item in self.shortlist_items]
             
             return (ResponseHelpers.success_response(
@@ -83,3 +110,31 @@ class GetShortlistController:
         except Exception as e:
             print(f"[ERROR] Get shortlist failed: {str(e)}")
             return (ResponseHelpers.error_response('Internal server error'), 500)
+
+    def _within_date_range(self, item: Shortlist) -> bool:
+        """Check if shortlist item falls within the provided date range"""
+        date_candidate = item.completion_date or item.shortlisted_at
+        item_date = self._parse_date(date_candidate)
+        if not item_date:
+            return False
+        
+        if self.start_date:
+            start_date = self._parse_date(self.start_date)
+            if not start_date or item_date.date() < start_date.date():
+                return False
+        
+        if self.end_date:
+            end_date = self._parse_date(self.end_date)
+            if not end_date or item_date.date() > end_date.date():
+                return False
+        
+        return True
+
+    def _parse_date(self, date_str: str):
+        if not date_str:
+            return None
+        try:
+            cleaned = date_str.replace('Z', '+00:00')
+            return datetime.fromisoformat(cleaned)
+        except Exception:
+            return None

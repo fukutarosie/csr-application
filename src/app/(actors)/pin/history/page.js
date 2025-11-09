@@ -18,6 +18,8 @@ export default function CompletedMatches() {
   // Date filters
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [serviceType, setServiceType] = useState('');
+  const [serviceTypes, setServiceTypes] = useState([]);
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -44,7 +46,15 @@ export default function CompletedMatches() {
 
     setUser(parsedUser);
     fetchCompletedMatches();
-  }, [router, currentPage, startDate, endDate]);
+    fetchServiceTypes();
+  }, [router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchCompletedMatches();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, startDate, endDate, serviceType]);
 
   const fetchCompletedMatches = async () => {
     setLoading(true);
@@ -58,6 +68,7 @@ export default function CompletedMatches() {
       
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
+      if (serviceType) params.service_type = serviceType;
 
       const response = await axios.get('http://localhost:5000/api/requests/history', {
         headers: { 'Authorization': `Bearer ${getToken()}` },
@@ -79,6 +90,18 @@ export default function CompletedMatches() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchServiceTypes = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/requests/service-types');
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      if (actualData?.success) {
+        setServiceTypes(actualData.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load service types', err);
     }
   };
 
@@ -110,15 +133,18 @@ export default function CompletedMatches() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {error && <Alert type="error" message={error} onClose={() => setError('')} />}
 
-        {/* Date Filters */}
+        {/* Filters */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
               <input
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setCurrentPage(1);
+                  setStartDate(e.target.value);
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -128,9 +154,31 @@ export default function CompletedMatches() {
               <input
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setCurrentPage(1);
+                  setEndDate(e.target.value);
+                }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
+              <select
+                value={serviceType}
+                onChange={(e) => {
+                  setCurrentPage(1);
+                  setServiceType(e.target.value);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">All Service Types</option>
+                {serviceTypes.map((type) => (
+                  <option key={type.id} value={type.service_name}>
+                    {type.service_name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-end">
@@ -138,6 +186,8 @@ export default function CompletedMatches() {
                 onClick={() => {
                   setStartDate('');
                   setEndDate('');
+                  setServiceType('');
+                  setCurrentPage(1);
                 }}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
               >

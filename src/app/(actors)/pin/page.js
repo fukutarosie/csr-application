@@ -20,6 +20,10 @@ export default function PINDashboard() {
   const [serviceTypes, setServiceTypes] = useState([]);
   const toast = useToast();
   const [completingRequest, setCompletingRequest] = useState(null);
+  const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [completionFeedback, setCompletionFeedback] = useState('');
+  const [completionHours, setCompletionHours] = useState('');
 
   const getToken = () => localStorage.getItem('token');
 
@@ -102,8 +106,9 @@ export default function PINDashboard() {
 
   const fetchRequests = async () => {
     try {
+      const effectiveStatus = filterStatus === 'ASSIGNED' ? 'ACTIVE' : filterStatus;
       const response = await axios.get(
-        `http://localhost:5000/api/requests?status=${filterStatus}`,
+        `http://localhost:5000/api/requests?status=${effectiveStatus}`,
         {
           headers: { Authorization: `Bearer ${getToken()}` },
           params: { page: 1, limit: 100 }
@@ -111,7 +116,11 @@ export default function PINDashboard() {
       );
 
       if (response.data.success) {
-        setRequests(response.data.data);
+        const requestsData = response.data.data || [];
+        const filteredForAssignment = filterStatus === 'ASSIGNED'
+          ? requestsData.filter(req => req.assignment_status === 'IN_PROGRESS')
+          : requestsData;
+        setRequests(filteredForAssignment);
       } else {
         toast.error(response.data.message || 'Failed to load requests');
       }
@@ -121,22 +130,42 @@ export default function PINDashboard() {
     }
   };
 
-  const handleMarkAsCompleted = async (requestId) => {
-    if (!confirm('Mark this request as completed? This action cannot be undone.')) {
-      return;
-    }
+  const openCompleteModal = (request) => {
+    setSelectedRequest(request);
+    setCompletionFeedback('');
+    setCompletionHours('');
+    setShowCompleteModal(true);
+  };
 
-    setCompletingRequest(requestId);
+  const closeCompleteModal = () => {
+    setShowCompleteModal(false);
+    setSelectedRequest(null);
+    setCompletingRequest(null);
+    setCompletionFeedback('');
+    setCompletionHours('');
+  };
+
+  const handleMarkAsCompleted = async () => {
+    if (!selectedRequest) return;
+
+    setCompletingRequest(selectedRequest.id);
     try {
+      const payload = {
+        status: 'FULFILLED',
+        feedback_from_pin: completionFeedback || undefined,
+        volunteered_hours: completionHours || undefined
+      };
+
       const response = await axios.put(
-        `http://localhost:5000/api/requests/${requestId}`,
-        { status: 'FULFILLED' },
+        `http://localhost:5000/api/requests/${selectedRequest.id}`,
+        payload,
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
 
       if (response.data.success) {
         toast.success('Request marked as completed!');
         fetchRequests(); // Refresh the list
+        closeCompleteModal();
       } else {
         const msg = response.data.message || 'Failed to mark request as completed';
         toast.error(msg);
@@ -219,6 +248,16 @@ export default function PINDashboard() {
                 Active
               </button>
               <button
+                onClick={() => setFilterStatus('ASSIGNED')}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
+                  filterStatus === 'ASSIGNED'
+                    ? 'border-indigo-500 text-indigo-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                In Progress
+              </button>
+              <button
                 onClick={() => setFilterStatus('SUSPENDED')}
                 className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
                   filterStatus === 'SUSPENDED'
@@ -289,12 +328,14 @@ export default function PINDashboard() {
         <div className="bg-white rounded-lg shadow">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-bold text-gray-900">
-              {filterStatus.charAt(0) + filterStatus.slice(1).toLowerCase()} Requests
+              {filterStatus === 'ASSIGNED'
+                ? 'In Progress Requests'
+                : filterStatus.charAt(0) + filterStatus.slice(1).toLowerCase() + ' Requests'}
             </h2>
           </div>
           <div className="p-6">
             <RequestCardGrid
-              emptyMessage={`No ${filterStatus.toLowerCase()} requests ${searchKeyword || searchServiceType ? 'match your search' : 'yet'}`}
+              emptyMessage={`No ${filterStatus === 'ASSIGNED' ? 'in-progress' : filterStatus.toLowerCase()} requests ${searchKeyword || searchServiceType ? 'match your search' : 'yet'}`}
               emptyIcon="📝"
               emptyAction={
                 (searchKeyword || searchServiceType) ? (
@@ -369,7 +410,7 @@ export default function PINDashboard() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleMarkAsCompleted(request.id);
+                            openCompleteModal(request);
                           }}
                           disabled={completingRequest === request.id || !canMarkCompleted}
                           className={`w-full px-4 py-2 rounded-lg font-medium flex items-center justify-center gap-2 ${
@@ -398,6 +439,70 @@ export default function PINDashboard() {
           </div>
         </div>
       </main>
+
+      {showCompleteModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-lg shadow-2xl max-w-lg w-full p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-3">Mark Request as Completed</h2>
+            <p className="text-gray-600 mb-4">
+              You&apos;re about to mark <span className="font-semibold">{selectedRequest.title}</span> as completed.
+            </p>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <p className="text-sm text-blue-700">
+                This confirms the CSR volunteer has finished the opportunity. You can still leave feedback later
+                from the history tab if needed.
+              </p>
+            </div>
+            <div className="space-y-4 mb-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Volunteer Hours (optional)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={completionHours}
+                  onChange={(e) => setCompletionHours(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="e.g. 2.5"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Feedback for the CSR Rep (optional)
+                </label>
+                <textarea
+                  rows={4}
+                  value={completionFeedback}
+                  onChange={(e) => setCompletionFeedback(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="Say thanks or share how the volunteering went..."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeCompleteModal}
+                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleMarkAsCompleted}
+                disabled={completingRequest === selectedRequest.id}
+                className={`px-4 py-2 rounded-lg text-white font-semibold transition ${
+                  completingRequest === selectedRequest.id
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {completingRequest === selectedRequest.id ? 'Completing...' : 'Yes, mark as completed'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

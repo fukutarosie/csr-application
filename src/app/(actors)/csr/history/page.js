@@ -15,6 +15,10 @@ export default function CSRHistory() {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
   const toast = useToast();
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [serviceType, setServiceType] = useState('');
+  const [serviceTypes, setServiceTypes] = useState([]);
 
   const getToken = () => localStorage.getItem('token');
 
@@ -36,14 +40,27 @@ export default function CSRHistory() {
     setUser(parsedUser);
     fetchHistory();
     fetchStats();
+    fetchServiceTypes();
     setLoading(false);
   }, [router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, serviceType]);
 
   const fetchHistory = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/shortlist', {
         headers: { 'Authorization': `Bearer ${getToken()}` },
-        params: { status: 'COMPLETED' }
+        params: {
+          status: 'COMPLETED',
+          start_date: startDate || undefined,
+          end_date: endDate || undefined,
+          service_type: serviceType || undefined
+        }
       });
 
       if (response.data.success) {
@@ -71,6 +88,18 @@ export default function CSRHistory() {
     }
   };
 
+  const fetchServiceTypes = async () => {
+    try {
+      const response = await axios.get('http://localhost:5000/api/requests/service-types');
+      const actualData = Array.isArray(response.data) ? response.data[0] : response.data;
+      if (actualData?.success) {
+        setServiceTypes(actualData.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch service types:', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -93,6 +122,57 @@ export default function CSRHistory() {
       )}
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
+          <h2 className="text-lg font-semibold mb-4 text-gray-900">Filter Completed Activities</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Service Type</label>
+              <select
+                value={serviceType}
+                onChange={(e) => setServiceType(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              >
+                <option value="">All Service Types</option>
+                {serviceTypes.map((type) => (
+                  <option key={type.id} value={type.service_name}>
+                    {type.service_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                  setServiceType('');
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                Clear Filters
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Statistics Summary */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">

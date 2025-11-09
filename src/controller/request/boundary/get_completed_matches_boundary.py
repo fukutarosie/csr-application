@@ -19,9 +19,10 @@ def get_history():
     # Parse query parameters
     start_date = request.args.get('start_date', '').strip() or None
     end_date = request.args.get('end_date', '').strip() or None
+    service_type = request.args.get('service_type', '').strip() or None
     page = request.args.get('page', '1')
     limit = request.args.get('limit', '10')
     
-    controller = GetCompletedMatchesController(auth_token, start_date, end_date, page, limit)
+    controller = GetCompletedMatchesController(auth_token, start_date, end_date, page, limit, service_type)
     response, status = controller.execute()
     return jsonify(response), status
